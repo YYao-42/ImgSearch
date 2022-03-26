@@ -1,0 +1,6 @@
+data/
+outputs/
+src/__pycache__/
+src/datasets/__pycache__/
+src/layers/__pycache__/
+src/utils/__pycache__/
