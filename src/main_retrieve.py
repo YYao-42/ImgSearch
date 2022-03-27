@@ -76,6 +76,36 @@ parser.add_argument('--gpu-id', '-g', default='0', metavar='N',
 # parse the arguments
 args = parser.parse_args()
 
+def extr_selfmade_dataset(net, selfmadedataset, transform, ms, msp, Lw):
+    path_feature = {}
+    folder_path = os.path.join(get_data_root(), 'test', selfmadedataset)
+    images_r_path = os.listdir(folder_path)
+    images = [os.path.join(folder_path, rel_path) for rel_path in images_r_path]
+    path_feature['path'] = images_r_path
+    # extract database vectors
+    print('>> {}: database images...'.format(selfmadedataset))
+    vecs = extract_vectors(net, images, args.image_size, transform, ms=ms, msp=msp)
+    # convert to numpy
+    vecs = vecs.numpy()
+
+    if Lw is not None:
+        # whiten the vectors
+        vecs_lw  = whitenapply(vecs, Lw['m'], Lw['P'])
+        vecs = vecs_lw
+
+    path_feature['feature'] = vecs
+
+    # Save pathes and features        
+    isExist = os.path.exists('outputs')
+    if not isExist:
+        os.makedirs('outputs')
+
+    file_path_feature = 'outputs/' + selfmadedataset + '_path_feature.pkl'
+    afile = open(file_path_feature, "wb")
+    pickle.dump(path_feature, afile)
+    afile.close()
+
+
 def main():
     # check if there are unknown datasets
     for dataset in args.datasets.split(','):
@@ -245,37 +275,37 @@ def main():
         # prepare config structure for the test dataset
         cfg = configdataset(dataset, os.path.join(get_data_root(), 'test'))
         images = [cfg['im_fname'](cfg, i) for i in range(cfg['n'])]
-        images_r_path = [cfg['im_fname'](cfg, i).split('\\')[-1] for i in range(cfg['n'])]
+        images_r_path = [cfg['im_fname'](cfg, i).split('/')[-1] for i in range(cfg['n'])]
         qimages = [cfg['qim_fname'](cfg, i) for i in range(cfg['nq'])]
-        qimages_r_path = [cfg['qim_fname'](cfg, i).split('\\')[-1] for i in range(cfg['nq'])]
+        qimages_r_path = [cfg['qim_fname'](cfg, i).split('/')[-1] for i in range(cfg['nq'])]
         try:
             bbxs = [tuple(cfg['gnd'][i]['bbx']) for i in range(cfg['nq'])]
         except:
             bbxs = None  # for holidaysmanrot and copydays
 
         # extract database and query vectors
-        print('>> {}: database images...'.format(dataset))
-        vecs = extract_vectors(net, images, args.image_size, transform, ms=ms, msp=msp)
-        print('>> {}: query images...'.format(dataset))
-        qextract_start = time.time()
-        qvecs = extract_vectors(net, qimages, args.image_size, transform, bbxs=bbxs, ms=ms, msp=msp)
-        qextract_end = time.time()
-        qextract_per_query = (qextract_end - qextract_start)/55
-        print('>> {}: Evaluating...'.format(dataset))
-        # convert to numpy
-        vecs = vecs.numpy()
-        qvecs = qvecs.numpy()
+        # print('>> {}: database images...'.format(dataset))
+        # vecs = extract_vectors(net, images, args.image_size, transform, ms=ms, msp=msp)
+        # print('>> {}: query images...'.format(dataset))
+        # qextract_start = time.time()
+        # qvecs = extract_vectors(net, qimages, args.image_size, transform, bbxs=bbxs, ms=ms, msp=msp)
+        # qextract_end = time.time()
+        # qextract_per_query = (qextract_end - qextract_start)/55
+        # print('>> {}: Evaluating...'.format(dataset))
+        # # convert to numpy
+        # vecs = vecs.numpy()
+        # qvecs = qvecs.numpy()
 
-        if Lw is not None:
-            # whiten the vectors
-            qextract_start_w = time.time()
-            vecs_lw  = whitenapply(vecs, Lw['m'], Lw['P'])
-            qvecs_lw = whitenapply(qvecs, Lw['m'], Lw['P'])
-            qextract_end_w = time.time()
-            qextract_per_query = (qextract_end_w - qextract_start_w)/55+qextract_per_query
-            # for search & rank
-            vecs = vecs_lw
-            qvecs = qvecs_lw
+        # if Lw is not None:
+        #     # whiten the vectors
+        #     qextract_start_w = time.time()
+        #     vecs_lw  = whitenapply(vecs, Lw['m'], Lw['P'])
+        #     qvecs_lw = whitenapply(qvecs, Lw['m'], Lw['P'])
+        #     qextract_end_w = time.time()
+        #     qextract_per_query = (qextract_end_w - qextract_start_w)/55+qextract_per_query
+        #     # for search & rank
+        #     vecs = vecs_lw
+        #     qvecs = qvecs_lw
 
         # Save features        
 
@@ -286,8 +316,8 @@ def main():
         file_vecs = 'outputs/' + dataset + '_vecs.npy'
         file_qvecs = 'outputs/' + dataset + '_qvecs.npy'
 
-        np.save(file_vecs, vecs)
-        np.save(file_qvecs, qvecs)
+        # np.save(file_vecs, vecs)
+        # np.save(file_qvecs, qvecs)
 
         vecs = np.load(file_vecs)
         qvecs = np.load(file_qvecs)
@@ -296,68 +326,68 @@ def main():
         n_database = vecs.shape[1]
         K = n_database
         # K = 10
-        # match_idx, time_per_query = matching_L2(K, vecs.T, qvecs.T)
+        match_idx, time_per_query = matching_L2(K, vecs.T, qvecs.T)
         # match_idx, time_per_query = matching_Nano_PQ(K, vecs.T, qvecs.T, 16, 8)
-        # match_idx, time_per_query = matching_LSH_faiss(K, vecs.T, qvecs.T, 128)
         # match_idx, time_per_query = matching_ANNOY(K, vecs.T, qvecs.T, 'euclidean')
-        match_idx, time_per_query = matching_HNSW(K, vecs.T, qvecs.T)
+        # match_idx, time_per_query = matching_HNSW(K, vecs.T, qvecs.T)
         # embedded_code, Codewords, _ = Nano_PQ(vecs.T, 16, 256)
-        # match_idx, time_per_query = matching_PQ_Net(K, Codewords, qvecs.T, 16, embedded_code)
         # match_idx, time_per_query = matching_HNSW_PQ(K, Codewords, qvecs.T, embedded_code)
         print('matching time per query: ', time_per_query)
         ranks = match_idx.T
         compute_map_and_print(dataset, ranks, cfg['gnd'])
 
         # Output ranked images
-        rank_res = {}
-        for i in range(len(qimages_r_path)):
-            rank_res[qimages_r_path[i]] = [images_r_path[j] for j in match_idx[i,:]]
-        file_rankres = 'outputs/' + dataset + '_ranking_result.pkl'
-        a_file = open(file_rankres, "wb")
-        pickle.dump(rank_res, a_file)
-        a_file.close()
+        # rank_res = {}
+        # for i in range(len(qimages_r_path)):
+        #     rank_res[qimages_r_path[i]] = [images_r_path[j] for j in match_idx[i,:]]
+        # file_rankres = 'outputs/' + dataset + '_ranking_result.pkl'
+        # a_file = open(file_rankres, "wb")
+        # pickle.dump(rank_res, a_file)
+        # a_file.close()
 
         # Visualization
         # Visualize the selected query image and its matching images
-        gnd = cfg['gnd']
-        K_show = 20
-        idx_select = 1
-        query_image = qimages[idx_select]
-        matching_images = [images[j] for j in match_idx[idx_select, :K_show]]
-        plt.close('all')
-        plt.figure(figsize=(10, 4), dpi=80)
-        ax = plt.subplot2grid((2, K_show), (0, 0))
-        ax.axis('off')
-        ax.set_title('Query')
-        img = mpimg.imread(query_image)
-        plt.imshow(img)
-        for i in range(K_show):
-            if dataset == 'oxford5k' or dataset == 'paris6k':
-                if np.in1d(match_idx[idx_select, i], gnd[idx_select]['ok'])[0]:
-                    plt.rcParams["axes.edgecolor"] = "green"
-                else:
-                    plt.rcParams["axes.edgecolor"] = "red"
-            if dataset == 'roxford5k' or dataset == 'rparis6k':
-                if np.in1d(match_idx[idx_select, i], gnd[idx_select]['easy'])[0]:
-                    plt.rcParams["axes.edgecolor"] = "green"
-                elif np.in1d(match_idx[idx_select, i], gnd[idx_select]['hard'])[0]:
-                    plt.rcParams["axes.edgecolor"] = "blue"
-                elif np.in1d(match_idx[idx_select, i], gnd[idx_select]['junk'])[0]:
-                    plt.rcParams["axes.edgecolor"] = "red"
-            plt.rcParams["axes.linewidth"] = 2.50
-            ax = plt.subplot2grid((2, K_show), (1, i))
-            ax.xaxis.set_ticks([])
-            ax.yaxis.set_ticks([])
-            ax.set_title('Match #' + str(i + 1))
-            img = mpimg.imread(matching_images[i])
-            plt.imshow(img)
-        plt.tight_layout(pad=2)
-        file_vis_path = 'outputs/' + dataset + '_' + str(idx_select) + '_vis.png'
-        plt.savefig(file_vis_path)
+        # gnd = cfg['gnd']
+        # K_show = 20
+        # idx_select = 1
+        # query_image = qimages[idx_select]
+        # matching_images = [images[j] for j in match_idx[idx_select, :K_show]]
+        # plt.close('all')
+        # plt.figure(figsize=(10, 4), dpi=80)
+        # ax = plt.subplot2grid((2, K_show), (0, 0))
+        # ax.axis('off')
+        # ax.set_title('Query')
+        # img = mpimg.imread(query_image)
+        # plt.imshow(img)
+        # for i in range(K_show):
+        #     if dataset == 'oxford5k' or dataset == 'paris6k':
+        #         if np.in1d(match_idx[idx_select, i], gnd[idx_select]['ok'])[0]:
+        #             plt.rcParams["axes.edgecolor"] = "green"
+        #         else:
+        #             plt.rcParams["axes.edgecolor"] = "red"
+        #     if dataset == 'roxford5k' or dataset == 'rparis6k':
+        #         if np.in1d(match_idx[idx_select, i], gnd[idx_select]['easy'])[0]:
+        #             plt.rcParams["axes.edgecolor"] = "green"
+        #         elif np.in1d(match_idx[idx_select, i], gnd[idx_select]['hard'])[0]:
+        #             plt.rcParams["axes.edgecolor"] = "blue"
+        #         elif np.in1d(match_idx[idx_select, i], gnd[idx_select]['junk'])[0]:
+        #             plt.rcParams["axes.edgecolor"] = "red"
+        #     plt.rcParams["axes.linewidth"] = 2.50
+        #     ax = plt.subplot2grid((2, K_show), (1, i))
+        #     ax.xaxis.set_ticks([])
+        #     ax.yaxis.set_ticks([])
+        #     ax.set_title('Match #' + str(i + 1))
+        #     img = mpimg.imread(matching_images[i])
+        #     plt.imshow(img)
+        # plt.tight_layout(pad=2)
+        # file_vis_path = 'outputs/' + dataset + '_' + str(idx_select) + '_vis.png'
+        # plt.savefig(file_vis_path)
 
-        print("extracting time per query : ", qextract_per_query)
+        # print("extracting time per query : ", qextract_per_query)
         # print("retrieve time per query: ", retrieve_per_query)
-        print('>> {}: whole elapsed time: {}'.format(dataset, htime(time.time()-start)))
+        # print('>> {}: whole elapsed time: {}'.format(dataset, htime(time.time()-start)))
+    
+    extr_selfmade_dataset(net, 'Andrea', transform, ms, msp, Lw)
 
 
 if __name__ == '__main__':
