@@ -78,7 +78,8 @@ args = parser.parse_args()
 
 def extr_selfmade_dataset(net, selfmadedataset, transform, ms, msp, Lw):
     path_feature = {}
-    folder_path = os.path.join(get_data_root(), 'test', selfmadedataset)
+    # folder_path = os.path.join(get_data_root(), 'test', selfmadedataset)
+    folder_path = os.path.join('/home/yuanyuanyao/data/test', selfmadedataset) # local disk
     images_r_path = os.listdir(folder_path)
     images = [os.path.join(folder_path, rel_path) for rel_path in images_r_path]
     path_feature['path'] = images_r_path
@@ -387,7 +388,8 @@ def main():
         # print("retrieve time per query: ", retrieve_per_query)
         # print('>> {}: whole elapsed time: {}'.format(dataset, htime(time.time()-start)))
     
-    extr_selfmade_dataset(net, 'Andrea', transform, ms, msp, Lw)
+    # extr_selfmade_dataset(net, 'Andrea', transform, ms, msp, Lw)
+    extr_selfmade_dataset(net, 'flickr100k', transform, ms, msp, Lw)
 
 
 if __name__ == '__main__':
