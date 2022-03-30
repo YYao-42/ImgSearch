@@ -63,12 +63,16 @@ OUTPUT_DIM = {
 
 class ImageRetrievalNet(nn.Module):
     
-    def __init__(self, features, lwhiten, pool, whiten, meta):
+    def __init__(self, features, lwhiten, pool, whiten, dquantiz, meta):
         super(ImageRetrievalNet, self).__init__()
         self.features = nn.Sequential(*features)
         self.lwhiten = lwhiten
         self.pool = pool
         self.whiten = whiten
+        self.dquantiz = dquantiz
+        if self.dquantiz is not None:
+            self.C = dquantiz.C
+            self.N_books = dquantiz.N_books
         self.norm = L2N()
         self.meta = meta
     
@@ -93,6 +97,11 @@ class ImageRetrievalNet(nn.Module):
         if self.whiten is not None:
             o = self.norm(self.whiten(o))
 
+        # if dquantiz exist: features -> quantized features
+        if self.dquantiz is not None:
+            q_o, idx, C = self.dquantiz(o.detach())
+            return q_o.permute(1,0), idx.permute(1,0), C, o.permute(1,0)
+
         # permute so that it is Dx1 column vector per image (DxN if many images)
         return o.permute(1,0)
 
@@ -109,6 +118,7 @@ class ImageRetrievalNet(nn.Module):
         tmpstr += '     pooling: {}\n'.format(self.meta['pooling'])
         tmpstr += '     regional: {}\n'.format(self.meta['regional'])
         tmpstr += '     whitening: {}\n'.format(self.meta['whitening'])
+        tmpstr += '     deep_quantization: {}\n'.format(self.meta['deep_quantization'])
         tmpstr += '     outputdim: {}\n'.format(self.meta['outputdim'])
         tmpstr += '     mean: {}\n'.format(self.meta['mean'])
         tmpstr += '     std: {}\n'.format(self.meta['std'])
@@ -124,6 +134,7 @@ def init_network(params):
     pooling = params.get('pooling', 'gem')
     regional = params.get('regional', False)
     whitening = params.get('whitening', False)
+    deep_quantization = params.get('deep_quantization', False)
     mean = params.get('mean', [0.485, 0.456, 0.406])
     std = params.get('std', [0.229, 0.224, 0.225])
     pretrained = params.get('pretrained', True)
@@ -227,6 +238,12 @@ def init_network(params):
     else:
         whiten = None
 
+    # initialize deep quantization
+    if deep_quantization:
+        dquantiz = Soft_PQ(N_words=256, N_books=16, L_word=128, tau_q=5)
+    else:
+        dquantiz = None
+
     # create meta information to be stored in the network
     meta = {
         'architecture' : architecture, 
@@ -234,13 +251,14 @@ def init_network(params):
         'pooling' : pooling, 
         'regional' : regional, 
         'whitening' : whitening, 
+        'deep_quantization': deep_quantization,
         'mean' : mean, 
         'std' : std,
         'outputdim' : dim,
     }
 
     # create a generic image retrieval network
-    net = ImageRetrievalNet(features, lwhiten, pool, whiten, meta)
+    net = ImageRetrievalNet(features, lwhiten, pool, whiten, dquantiz, meta)
 
     # initialize features with custom pretrained network if needed
     if pretrained and architecture in FEATURES:
@@ -300,6 +318,37 @@ def extract_vectors_single(net, image, image_size, transform, ms=[1], msp=1):
             vec = extract_ms(net, input, ms, msp)
 
     return vec
+
+def extract_vectors_PQ(net, images, image_size, transform, bbxs=None, print_freq=10):
+    # moving network to gpu and eval mode
+    net.cuda()
+    net.eval()
+
+    # creating dataset loader
+    loader = torch.utils.data.DataLoader(
+        ImagesFromList(root='', images=images, imsize=image_size, bbxs=bbxs, transform=transform),
+        batch_size=1, shuffle=False, num_workers=8, pin_memory=True
+    )
+
+    # extracting vectors
+    with torch.no_grad():
+        quantized_vecs = torch.zeros(net.meta['outputdim'], len(images))
+        vecs = torch.zeros(net.meta['outputdim'], len(images))
+        idx = torch.zeros(net.N_books, len(images))
+        for i, input in enumerate(loader):
+            input = input.cuda()
+
+            quantized_vecs_temp, idx_temp, C_temp, vecs_temp = net(input)
+            quantized_vecs[:, i] = quantized_vecs_temp.cpu().data.squeeze()
+            vecs[:, i] = vecs_temp.cpu().data.squeeze()
+            idx[:, i] = idx_temp.cpu().data.squeeze()
+
+            if (i+1) % print_freq == 0 or (i+1) == len(images):
+                print('\r>>>> {}/{} done...'.format((i+1), len(images)), end='')
+        print('')
+    C = C_temp.cpu().data.squeeze()
+
+    return quantized_vecs, idx, C, vecs
 
 def extract_ss(net, input):
     return net(input).cpu().data.squeeze()

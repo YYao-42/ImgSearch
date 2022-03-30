@@ -6,6 +6,7 @@ and retrieve relevant images of given queries
 
 import argparse
 import os
+from this import d
 import time
 import pickle
 import pdb
@@ -19,10 +20,10 @@ from torchvision import transforms
 import torch.nn as nn
 import torch.utils.data
 
-from src.imageretrievalnet import init_network, extract_vectors
+from src.imageretrievalnet import extract_vectors_PQ, init_network, extract_vectors
 from src.datasets.datahelpers import cid2filename
 from src.datasets.testdataset import configdataset
-from src.utils.download import download_train, download_test
+from src.utils.download import download_distractors, download_train, download_test
 from src.layers.whiten import whitenlearn, whitenapply
 from src.utils.evaluate import compute_map_and_print
 from src.utils.general import get_data_root, htime
@@ -65,6 +66,9 @@ parser.add_argument('--whitening', '-w', metavar='WHITENING', default=None, choi
                     help="dataset used to learn whitening for testing: " +
                         " | ".join(whitening_names) +
                         " (default: None)")
+
+parser.add_argument('--deep-quantization', '-dq', dest='deep_quantization', action='store_true',
+                    help='model with deep quantization (supervised PQ)')
 
 # GPU ID
 parser.add_argument('--gpu-id', '-g', default='0', metavar='N',
@@ -137,6 +141,7 @@ def main():
         net_params['local_whitening'] = state['meta'].get('local_whitening', False)
         net_params['regional'] = state['meta'].get('regional', False)
         net_params['whitening'] = state['meta'].get('whitening', False)
+        net_params['deep_quantization'] = state['meta'].get('deep_quantization', False)
         net_params['mean'] = state['meta']['mean']
         net_params['std'] = state['meta']['std']
         net_params['pretrained'] = False
@@ -164,6 +169,7 @@ def main():
         net_params['local_whitening'] = 'lwhiten' in offtheshelf[2:]
         net_params['regional'] = 'reg' in offtheshelf[2:]
         net_params['whitening'] = 'whiten' in offtheshelf[2:]
+        net_params['deep_quantization'] = False
         net_params['pretrained'] = True
 
         # load off-the-shelf network
@@ -174,7 +180,7 @@ def main():
 
     # setting up the multi-scale parameters
     ms = list(eval(args.multiscale))
-    if len(ms)>1 and net.meta['pooling'] == 'gem' and not net.meta['regional'] and not net.meta['whitening']:
+    if len(ms)>1 and net.meta['pooling'] == 'gem' and not net.meta['regional'] and not net.meta['whitening'] and not net.meta['deep_quantization']:
         msp = net.pool.p.item()
         print(">> Set-up multiscale:")
         print(">>>> ms: {}".format(ms))
@@ -278,10 +284,19 @@ def main():
 
         # extract database and query vectors
         print('>> {}: database images...'.format(dataset))
-        vecs = extract_vectors(net, images, args.image_size, transform, ms=ms, msp=msp)
+        if args.deep_quantization:
+            quantized_vecs, CW_idx, Codewords, vecs = extract_vectors_PQ(net, images, args.image_size, transform)
+            CW_idx = CW_idx.numpy()
+            CW_idx = CW_idx.astype(int)
+            Codewords = Codewords.numpy()
+        else:
+            vecs = extract_vectors(net, images, args.image_size, transform, ms=ms, msp=msp)
         print('>> {}: query images...'.format(dataset))
         qextract_start = time.time()
-        qvecs = extract_vectors(net, qimages, args.image_size, transform, bbxs=bbxs, ms=ms, msp=msp)
+        if args.deep_quantization:
+            _, _, _, qvecs = extract_vectors_PQ(net, qimages, args.image_size, transform)
+        else:
+            qvecs = extract_vectors(net, qimages, args.image_size, transform, bbxs=bbxs, ms=ms, msp=msp)
         qextract_end = time.time()
         qextract_per_query = (qextract_end - qextract_start)/55
         print('>> {}: Evaluating...'.format(dataset))
@@ -308,23 +323,39 @@ def main():
 
         file_vecs = 'outputs/' + dataset + '_vecs.npy'
         file_qvecs = 'outputs/' + dataset + '_qvecs.npy'
-
+        
         np.save(file_vecs, vecs)
         np.save(file_qvecs, qvecs)
 
+        if args.deep_quantization:
+            # Codewords = net.C
+            # Codewords = Codewords.cpu().detach().numpy()
+            file_CW_idx = 'outputs/' + dataset + '_CW_idx.npy'
+            file_Codewords = 'outputs/' + dataset + '_Codewords.npy'
+            np.save(file_CW_idx, CW_idx)
+            np.save(file_Codewords, Codewords)
+
+        
         vecs = np.load(file_vecs)
-        qvecs = np.load(file_qvecs)
+        qvecs = np.load(file_qvecs)       
 
         # search, rank, and print
         n_database = vecs.shape[1]
         K = n_database
         # K = 10
-        match_idx, time_per_query = matching_L2(K, vecs.T, qvecs.T)
-        # match_idx, time_per_query = matching_Nano_PQ(K, vecs.T, qvecs.T, 16, 8)
-        # match_idx, time_per_query = matching_ANNOY(K, vecs.T, qvecs.T, 'euclidean')
-        # match_idx, time_per_query = matching_HNSW(K, vecs.T, qvecs.T)
-        # embedded_code, Codewords, _ = Nano_PQ(vecs.T, 16, 256)
-        # match_idx, time_per_query = matching_HNSW_PQ(K, Codewords, qvecs.T, embedded_code)
+        if args.deep_quantization:
+            CW_idx = np.load(file_CW_idx)
+            Codewords = np.load(file_Codewords)
+            N_books = net.N_books
+            match_idx, time_per_query = matching_PQ_Net(K, Codewords, qvecs.T, N_books, CW_idx.T)
+        else:
+            match_idx, time_per_query = matching_L2(K, vecs.T, qvecs.T)
+            # match_idx, time_per_query = matching_Nano_PQ(K, vecs.T, qvecs.T, 16, 8)
+            # match_idx, time_per_query = matching_ANNOY(K, vecs.T, qvecs.T, 'euclidean')
+            # match_idx, time_per_query = matching_HNSW(K, vecs.T, qvecs.T)
+            # embedded_code, Codewords, _ = Nano_PQ(vecs.T, 16, 256)
+            # match_idx, time_per_query = matching_PQ_Net(K, Codewords, qvecs.T, 16, embedded_code)
+            # match_idx, time_per_query = matching_HNSW_PQ(K, Codewords, qvecs.T, embedded_code)
         print('matching time per query: ', time_per_query)
         ranks = match_idx.T
         compute_map_and_print(dataset, ranks, cfg['gnd'])
@@ -379,9 +410,9 @@ def main():
         print("extracting time per query : ", qextract_per_query)
         # print("retrieve time per query: ", retrieve_per_query)
         print('>> {}: whole elapsed time: {}'.format(dataset, htime(time.time()-start)))
-    
-    # extr_selfmade_dataset(net, 'Andrea', transform, ms, msp, Lw)
-    # extr_selfmade_dataset(net, 'flickr100k', transform, ms, msp, Lw)
+
+        # extr_selfmade_dataset(net, 'Andrea', transform, ms, msp, Lw)
+        # extr_selfmade_dataset(net, 'flickr100k', transform, ms, msp, Lw)
 
 
 if __name__ == '__main__':

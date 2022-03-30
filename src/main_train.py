@@ -83,6 +83,8 @@ parser.add_argument('--regional', '-r', dest='regional', action='store_true',
                     help='train model with regional pooling using fixed grid')
 parser.add_argument('--whitening', '-w', dest='whitening', action='store_true',
                     help='train model with learnable whitening (linear layer) after the pooling')
+parser.add_argument('--deep-quantization', '-dq', dest='deep_quantization', action='store_true',
+                    help='train model with deep quantization (supervised PQ)')
 parser.add_argument('--not-pretrained', dest='pretrained', action='store_false',
                     help='initialize model with random weights (default: pretrained on imagenet)')
 parser.add_argument('--loss', '-l', metavar='LOSS', default='contrastive',
@@ -166,6 +168,8 @@ def main():
         directory += "_r"
     if args.whitening:
         directory += "_whiten"
+    if args.deep_quantization:
+        directory += "_dquantiz"
     if not args.pretrained:
         directory += "_notpretrained"
     directory += "_{}_m{:.2f}".format(args.loss, args.loss_margin)
@@ -194,6 +198,7 @@ def main():
     model_params['local_whitening'] = args.local_whitening
     model_params['regional'] = args.regional
     model_params['whitening'] = args.whitening
+    model_params['deep_quantization'] = args.deep_quantization
     # model_params['mean'] = ...  # will use default
     # model_params['std'] = ...  # will use default
     model_params['pretrained'] = args.pretrained
@@ -326,9 +331,9 @@ def main():
                 loss = validate(val_loader, model, criterion, epoch)
 
         # evaluate on test datasets every test_freq epochs
-        if (epoch + 1) % args.test_freq == 0:
-            with torch.no_grad():
-                test(args.test_datasets, model)
+        # if (epoch + 1) % args.test_freq == 0:
+        #     with torch.no_grad():
+        #         test(args.test_datasets, model)
 
         # remember best loss and save checkpoint
         is_best = loss < min_loss
@@ -369,17 +374,26 @@ def train(train_loader, model, criterion, optimizer, epoch):
 
         for q in range(nq):
             output = torch.zeros(model.meta['outputdim'], ni).cuda()
+            quantized_output = torch.zeros(model.meta['outputdim'], ni).cuda()
             for imi in range(ni):
 
                 # compute output vector for image imi
-                output[:, imi] = model(input[q][imi].cuda()).squeeze()
+                if model.dquantiz is not None:
+                    quantized_output_temp, _, _, output_temp = model(input[q][imi].cuda())
+                    quantized_output[:, imi] = quantized_output_temp.squeeze()
+                    output[:, imi] = output_temp.squeeze()
+                    loss1 = criterion(output, target[q].cuda())
+                    loss2 = torch.mean(torch.sum((output-quantized_output)**2, axis=0))
+                    loss = loss1 + 0.1 * loss2
+                else:
+                    output[:, imi] = model(input[q][imi].cuda()).squeeze()
+                    loss = criterion(output, target[q].cuda())
 
             # reducing memory consumption:
             # compute loss for this query tuple only
             # then, do backward pass for one tuple only
             # each backward pass gradients will be accumulated
             # the optimization step is performed for the full batch later
-            loss = criterion(output, target[q].cuda())
             losses.update(loss.item())
             loss.backward()
 
@@ -425,17 +439,25 @@ def validate(val_loader, model, criterion, epoch):
         nq = len(input) # number of training tuples
         ni = len(input[0]) # number of images per tuple
         output = torch.zeros(model.meta['outputdim'], nq*ni).cuda()
-
+        quantized_output = torch.zeros(model.meta['outputdim'], nq*ni).cuda()
         for q in range(nq):
             for imi in range(ni):
 
                 # compute output vector for image imi of query q
-                output[:, q*ni + imi] = model(input[q][imi].cuda()).squeeze()
+                if model.dquantiz is not None:
+                    quantized_output_temp, _, _, output_temp = model(input[q][imi].cuda())
+                    quantized_output[:, q*ni + imi] = quantized_output_temp.squeeze()
+                    output[:, q*ni + imi] = output_temp.squeeze()
+                    loss = criterion(output, torch.cat(target).cuda())
+                    # loss1 = criterion(output, torch.cat(target).cuda())
+                    # loss2 = torch.mean(torch.sum((output-quantized_output)**2, axis=0))
+                    # loss = loss1 + 0.5 * loss2
+                else:
+                    output[:, q*ni + imi] = model(input[q][imi].cuda()).squeeze()
+                    loss = criterion(output, torch.cat(target).cuda())
 
         # no need to reduce memory consumption (no backward pass):
         # compute loss for the full batch
-        loss = criterion(output, torch.cat(target).cuda())
-
         # record loss
         losses.update(loss.item()/nq, nq)
 
@@ -541,6 +563,7 @@ def test(datasets, net):
 
         print('>> {}: elapsed time: {}'.format(dataset, htime(time.time()-start)))
 
+
 def save_checkpoint(state, is_best, directory):
     filename = os.path.join(directory, 'model_epoch%d.pth.tar' % state['epoch'])
     torch.save(state, filename)
@@ -579,7 +602,6 @@ def set_batchnorm_eval(m):
         # # that is why next two lines are commented
         # for p in m.parameters():
             # p.requires_grad = False
-
 
 if __name__ == '__main__':
     main()
