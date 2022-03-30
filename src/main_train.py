@@ -139,10 +139,6 @@ parser.add_argument('--resume', default='', type=str, metavar='FILENAME',
 parser.add_argument('--gpu-id', '-g', default='0', metavar='N',
                     help='gpu id used for training (default: 0)')
 
-# product quantization setting
-parser.add_argument('--sup_PQ', type=bool, default=False,
-                    help='whether using supervised product quantization')
-
 # parse the arguments
 args = parser.parse_args()
 min_loss = float('inf')
@@ -192,11 +188,6 @@ def main():
     np.random.seed(0)
 
     """Main pipeline"""
-    if args.sup_PQ:
-        net = TripletNet_PQ(resnet18(), Soft_PQ())
-    else:
-        net = TripletNet(resnet18())
-
     model_params = {}
     model_params['architecture'] = args.arch
     model_params['pooling'] = args.pool
@@ -352,7 +343,7 @@ def main():
         }, is_best, args.directory)
 
     # train model
-def train(train_loader,sup_PQ, model, criterion, optimizer, epoch):
+def train(train_loader, model, criterion, optimizer, epoch):
     batch_time = AverageMeter()
     data_time = AverageMeter()
     losses = AverageMeter()

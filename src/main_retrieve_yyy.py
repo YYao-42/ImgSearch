@@ -66,8 +66,7 @@ parser.add_argument('--whitening', '-w', metavar='WHITENING', default=None, choi
                     help="dataset used to learn whitening for testing: " +
                         " | ".join(whitening_names) +
                         " (default: None)")
-# parser.add_argument('--deep-quantization', '-dq', metavar='SPQ', default=False,
-#                     help='with deep quantization (supervised PQ)')
+
 parser.add_argument('--deep-quantization', '-dq', dest='deep_quantization', action='store_true',
                     help='model with deep quantization (supervised PQ)')
 
@@ -77,6 +76,36 @@ parser.add_argument('--gpu-id', '-g', default='0', metavar='N',
 
 # parse the arguments
 args = parser.parse_args()
+
+def extr_selfmade_dataset(net, selfmadedataset, transform, ms, msp, Lw):
+    path_feature = {}
+    # folder_path = os.path.join(get_data_root(), 'test', selfmadedataset)
+    folder_path = os.path.join('/home/yuanyuanyao/data/test', selfmadedataset) # local disk
+    images_r_path = os.listdir(folder_path)
+    images = [os.path.join(folder_path, rel_path) for rel_path in images_r_path]
+    path_feature['path'] = images_r_path
+    # extract database vectors
+    print('>> {}: database images...'.format(selfmadedataset))
+    vecs = extract_vectors(net, images, args.image_size, transform, ms=ms, msp=msp)
+    # convert to numpy
+    vecs = vecs.numpy()
+
+    if Lw is not None:
+        # whiten the vectors
+        vecs_lw  = whitenapply(vecs, Lw['m'], Lw['P'])
+        vecs = vecs_lw
+
+    path_feature['feature'] = vecs
+
+    # Save pathes and features        
+    isExist = os.path.exists('outputs')
+    if not isExist:
+        os.makedirs('outputs')
+
+    file_path_feature = 'outputs/' + selfmadedataset + '_path_feature.pkl'
+    afile = open(file_path_feature, "wb")
+    pickle.dump(path_feature, afile)
+    afile.close()
 
 def main():
     # check if there are unknown datasets
@@ -88,7 +117,6 @@ def main():
     # and download if they are not
     download_train(get_data_root())
     download_test(get_data_root())
-    # download_distractors(get_data_root())
 
     # setting up the visible GPU
     os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu_id
@@ -246,9 +274,9 @@ def main():
         # prepare config structure for the test dataset
         cfg = configdataset(dataset, os.path.join(get_data_root(), 'test'))
         images = [cfg['im_fname'](cfg, i) for i in range(cfg['n'])]
-        images_r_path = [cfg['im_fname'](cfg, i).split('\\')[-1] for i in range(cfg['n'])]
+        images_r_path = [cfg['im_fname'](cfg, i).split('/')[-1] for i in range(cfg['n'])]
         qimages = [cfg['qim_fname'](cfg, i) for i in range(cfg['nq'])]
-        qimages_r_path = [cfg['qim_fname'](cfg, i).split('\\')[-1] for i in range(cfg['nq'])]
+        qimages_r_path = [cfg['qim_fname'](cfg, i).split('/')[-1] for i in range(cfg['nq'])]
         try:
             bbxs = [tuple(cfg['gnd'][i]['bbx']) for i in range(cfg['nq'])]
         except:
@@ -295,6 +323,7 @@ def main():
 
         file_vecs = 'outputs/' + dataset + '_vecs.npy'
         file_qvecs = 'outputs/' + dataset + '_qvecs.npy'
+        
         np.save(file_vecs, vecs)
         np.save(file_qvecs, qvecs)
 
@@ -322,7 +351,6 @@ def main():
         else:
             match_idx, time_per_query = matching_L2(K, vecs.T, qvecs.T)
             # match_idx, time_per_query = matching_Nano_PQ(K, vecs.T, qvecs.T, 16, 8)
-            # match_idx, time_per_query = matching_LSH_faiss(K, vecs.T, qvecs.T, 128)
             # match_idx, time_per_query = matching_ANNOY(K, vecs.T, qvecs.T, 'euclidean')
             # match_idx, time_per_query = matching_HNSW(K, vecs.T, qvecs.T)
             # embedded_code, Codewords, _ = Nano_PQ(vecs.T, 16, 256)
@@ -382,6 +410,9 @@ def main():
         print("extracting time per query : ", qextract_per_query)
         # print("retrieve time per query: ", retrieve_per_query)
         print('>> {}: whole elapsed time: {}'.format(dataset, htime(time.time()-start)))
+
+        # extr_selfmade_dataset(net, 'Andrea', transform, ms, msp, Lw)
+        # extr_selfmade_dataset(net, 'flickr100k', transform, ms, msp, Lw)
 
 
 if __name__ == '__main__':

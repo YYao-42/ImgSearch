@@ -11,6 +11,7 @@ from src.layers.pooling import MAC, SPoC, GeM, RMAC,Rpool
 from src.layers.normalization import L2N, PowerLaw
 from src.layers.quantization import Soft_PQ
 from src.datasets.genericdataset import ImagesFromList
+from src.datasets.datahelpers import pil_loader, imresize
 from src.utils.general import get_data_root
 
 # for some models, we have imported features (convolutions) from caffe because the image retrieval performance is higher for them
@@ -296,6 +297,27 @@ def extract_vectors(net, images, image_size, transform, bbxs=None, ms=[1], msp=1
         print('')
 
     return vecs
+
+def extract_vectors_single(net, image, image_size, transform, ms=[1], msp=1):
+    # moving network to gpu and eval mode
+    net.cuda()
+    net.eval()
+
+    input = pil_loader(image)
+    input = imresize(input, image_size)
+    input = transform(input)
+    input = torch.unsqueeze(input, 0)
+
+    # extracting vectors
+    with torch.no_grad():
+        input = input.cuda()
+
+        if len(ms) == 1 and ms[0] == 1:
+            vec = extract_ss(net, input)
+        else:
+            vec = extract_ms(net, input, ms, msp)
+
+    return vec
 
 def extract_vectors_PQ(net, images, image_size, transform, bbxs=None, print_freq=10):
     # moving network to gpu and eval mode
