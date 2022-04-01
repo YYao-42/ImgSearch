@@ -77,13 +77,34 @@ parser.add_argument('--gpu-id', '-g', default='0', metavar='N',
 # parse the arguments
 args = parser.parse_args()
 
-def extr_selfmade_dataset(net, selfmadedataset, transform, ms, msp, Lw):
+def save_path_feature(dataset, vecs, img_r_path):
+    # save the dictionary of paths and features of images into a pkl file    
+    isExist = os.path.exists('outputs')
+    if not isExist:
+        os.makedirs('outputs')
+    
     path_feature = {}
+    path_feature['path'] = img_r_path
+    path_feature['feature'] = vecs
+
+    file_path_feature = 'outputs/' + dataset + '_path_feature.pkl'
+    afile = open(file_path_feature, "wb")
+    pickle.dump(path_feature, afile)
+    afile.close()
+
+def load_path_features(dataset):
+    file_path_feature = 'outputs/' + dataset + '_path_feature.pkl'
+    with open(file_path_feature, 'rb') as pickle_file:
+        path_feature = pickle.load(pickle_file)
+    vecs = path_feature['feature']
+    img_r_path = path_feature['path']
+    return vecs, img_r_path
+
+def extr_selfmade_dataset(net, selfmadedataset, transform, ms, msp, Lw):
     # folder_path = os.path.join(get_data_root(), 'test', selfmadedataset)
     folder_path = os.path.join('/home/yuanyuanyao/data/test', selfmadedataset) # local disk
-    images_r_path = os.listdir(folder_path)
-    images = [os.path.join(folder_path, rel_path) for rel_path in images_r_path]
-    path_feature['path'] = images_r_path
+    img_r_path = os.listdir(folder_path)
+    images = [os.path.join(folder_path, rel_path) for rel_path in img_r_path]
     # extract database vectors
     print('>> {}: database images...'.format(selfmadedataset))
     vecs = extract_vectors(net, images, args.image_size, transform, ms=ms, msp=msp)
@@ -95,17 +116,7 @@ def extr_selfmade_dataset(net, selfmadedataset, transform, ms, msp, Lw):
         vecs_lw  = whitenapply(vecs, Lw['m'], Lw['P'])
         vecs = vecs_lw
 
-    path_feature['feature'] = vecs
-
-    # Save pathes and features        
-    isExist = os.path.exists('outputs')
-    if not isExist:
-        os.makedirs('outputs')
-
-    file_path_feature = 'outputs/' + selfmadedataset + '_path_feature.pkl'
-    afile = open(file_path_feature, "wb")
-    pickle.dump(path_feature, afile)
-    afile.close()
+    save_path_feature(selfmadedataset, vecs, img_r_path)
 
 def main():
     # check if there are unknown datasets
@@ -315,7 +326,7 @@ def main():
             vecs = vecs_lw
             qvecs = qvecs_lw
 
-        # Save features        
+        # Save paths and features    
 
         isExist = os.path.exists('outputs')
         if not isExist:

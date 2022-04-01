@@ -546,7 +546,8 @@ def matching_HNSW_PQ(K, Codewords, embedded_features_test, CW_idx):
     for row in range(num_test):
         query = embedded_features_test[row, :]
         # K_unique = 10
-        K_unique = num_train
+        # K_unique = num_train
+        K_unique = K
         idx_unique = np.array(hnsw.search(query, K_unique, ef=K_unique))[:, 0].astype('int')
         if len(idx_unique) < K_unique:
             idx_miss = np.where(np.in1d(range(K_unique), idx_unique) == False)[0]
