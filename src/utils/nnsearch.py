@@ -5,7 +5,7 @@ This file contains classes/functions related to data compression and nearest nei
 
 import time
 import argparse
-
+import pickle
 import torch as T
 import numpy as np
 # import numba
@@ -76,23 +76,25 @@ class HNSW(object):
             print(b)
 
     def l2_distance_PQ_symmetric(self, encoded_a, encoded_b):
-        if (encoded_a == encoded_b).all():
-            dist = 0
-        else:
-            idx_diff = list(np.where(encoded_a != encoded_b)[0])
-            # Codewords = self.Codewords  # N_words * (N_books * L_word)
-            # Codewords = T.from_numpy(Codewords)
-            # _, dim = Codewords.shape
-            # N_books = len(encoded_a)
-            # L_word = int(dim / N_books)
-            # c = T.split(Codewords, L_word, 1)
-            c = self.c
-            dist = 0
-            # for i in range(N_books):
-            for i in idx_diff:
-                sub_a = c[i][encoded_a[i]].numpy()
-                sub_b = c[i][encoded_b[i]].numpy()
-                dist = dist + np.sum((sub_a-sub_b)**2)
+        # if (encoded_a == encoded_b).all():
+        #     dist = 0
+        # else:
+        #     idx_diff = list(np.where(encoded_a != encoded_b)[0])
+        #     dist = 0
+        #     # for i in range(N_books):
+        #     for i in idx_diff:
+        #         sub_a = self.c[i][encoded_a[i]].numpy()
+        #         sub_b = self.c[i][encoded_b[i]].numpy()
+        #         dist = dist + np.sum((sub_a-sub_b)**2)
+
+        # This implementation is much faster
+        filter = encoded_a != encoded_b
+        idx_diff = list(np.where(filter)[0])
+        encoded_a = encoded_a[filter].astype('int64')
+        encoded_b = encoded_b[filter].astype('int64')
+        a = self.reshaped_C[encoded_a, idx_diff, :]
+        b = self.reshaped_C[encoded_b, idx_diff, :]
+        dist = np.sum((a-b)**2)
         return dist
 
     def l2_distance_PQ_asymmetric(self, encoded_x, dist_table):
@@ -153,9 +155,10 @@ class HNSW(object):
                 raise TypeError('Please check your distance type!')
         else:
             distance_func = self.l2_distance_PQ_symmetric
-            Codewords = T.from_numpy(Codewords)
             _, dim = Codewords.shape
             L_word = int(dim / N_books)
+            self.reshaped_C = np.reshape(Codewords, (-1, N_books, L_word))
+            Codewords = T.from_numpy(Codewords)
             self.c = T.split(Codewords, L_word, 1)
 
         self.distance_func = distance_func
@@ -540,7 +543,13 @@ def matching_HNSW_PQ(K, Codewords, embedded_features_test, CW_idx):
         hnsw.add(CW_idx_unique[i])
         pbar.update(i + 1)
     pbar.finish()
+    # file_path = 'outputs/' + 'HNSW_PQ.pkl'
+    # afile = open(file_path, "wb")
+    # pickle.dump(hnsw, afile)
+    
     # Searching
+    # with open(file_path, 'rb') as pickle_file:
+    #     hnsw = pickle.load(pickle_file)
     idx = np.zeros((num_test, K), dtype=np.int64)
     t1 = time.time()
     for row in range(num_test):
