@@ -52,7 +52,7 @@ def fractional_distance(x, y, p=0.5):
         Input: x is a Nxd matrix
                y is an optional Mxd matirx
         Output: dist is a NxM matrix where dist[i,j] is the fractional distance between x[i,:] and y[j,:]
-        '''
+    '''
     x = np.expand_dims(x, axis=1)
     y = np.expand_dims(y, axis=0)
     diff = np.abs(x - y)
@@ -110,24 +110,28 @@ class HNSW(object):
         Outputs:
         dist_table: N_words * N_books
         '''
-        Codewords = self.Codewords  # N_words * (N_books * L_word)
-        N_words, dim = Codewords.shape
-        L_word = int(dim / N_books)
-        query = np.expand_dims(query, axis=0)
-        query = T.from_numpy(query)
-        q = T.split(query, L_word, 1)
-        Codewords = T.from_numpy(Codewords)
-        c = T.split(Codewords, L_word, 1)
-        for i in range(N_books):
-            if i == 0:
-                dist_table = squared_distances(q[i], c[i])
-                dist_table = T.unsqueeze(dist_table, 2)
-            else:
-                temp = squared_distances(q[i], c[i])
-                temp = T.unsqueeze(temp, 2)
-                dist_table = T.cat((dist_table, temp), dim=2)
-        dist_table = dist_table.cpu().detach().numpy()
-        return np.squeeze(dist_table, axis=0)
+        reshaped_q = np.reshape(query, (1, N_books, -1))
+        dist_table = np.sum((self.reshaped_C-reshaped_q)**2, axis=2)
+        return dist_table
+
+        # Codewords = self.Codewords  # N_words * (N_books * L_word)
+        # N_words, dim = Codewords.shape
+        # L_word = int(dim / N_books)
+        # query = np.expand_dims(query, axis=0)
+        # query = T.from_numpy(query)
+        # q = T.split(query, L_word, 1)
+        # # Codewords = T.from_numpy(Codewords)
+        # # c = T.split(Codewords, L_word, 1)
+        # for i in range(N_books):
+        #     if i == 0:
+        #         dist_table = squared_distances(q[i], self.c[i])
+        #         dist_table = T.unsqueeze(dist_table, 2)
+        #     else:
+        #         temp = squared_distances(q[i], self.c[i])
+        #         temp = T.unsqueeze(temp, 2)
+        #         dist_table = T.cat((dist_table, temp), dim=2)
+        # dist_table = dist_table.cpu().detach().numpy()
+        # return np.squeeze(dist_table, axis=0)
 
     def _distance(self, x, y):
         return self.distance_func(x, [y])[0]
@@ -505,17 +509,23 @@ class HNSW(object):
 def matching_HNSW(K, embedded_features_train, embedded_features_test):
     num_train, feature_len = embedded_features_train.shape
     num_test, _ = embedded_features_test.shape
-    # hnsw = HNSW('l2', m0=4, ef=16)
-    hnsw = HNSW('l2', m=4, ef=8)
-    widgets = ['Progress: ', Percentage(), ' ', Bar('#'), ' ', Timer(), ' ', ETA()]
-    pbar = ProgressBar(widgets=widgets, maxval=num_train).start()
-    # Building HNSW graph
-    print("==> Building HNSW graph ...")
-    for i in range(len(embedded_features_train)):
-        hnsw.add(embedded_features_train[i])
-        pbar.update(i + 1)
-    pbar.finish()
+    # # hnsw = HNSW('l2', m0=4, ef=16)
+    # hnsw = HNSW('l2', m=4, ef=8)
+    # widgets = ['Progress: ', Percentage(), ' ', Bar('#'), ' ', Timer(), ' ', ETA()]
+    # pbar = ProgressBar(widgets=widgets, maxval=num_train).start()
+    # # Building HNSW graph
+    # print("==> Building HNSW graph ...")
+    # for i in range(len(embedded_features_train)):
+    #     hnsw.add(embedded_features_train[i])
+    #     pbar.update(i + 1)
+    # pbar.finish()
+    file_path = 'outputs/' + 'HNSW.pkl'
+    # afile = open(file_path, "wb")
+    # pickle.dump(hnsw, afile)
+
     # Searching
+    with open(file_path, 'rb') as pickle_file:
+        hnsw = pickle.load(pickle_file)
     idx = np.zeros((num_test, K), dtype=np.int64)
     t1 = time.time()
     for row in range(num_test):
@@ -534,6 +544,11 @@ def matching_HNSW_PQ(K, Codewords, embedded_features_test, CW_idx):
     CW_idx_unique, reverse_idx = np.unique(CW_idx, return_inverse=True, axis=0)
     num_train, N_books = CW_idx_unique.shape
     num_test, _ = embedded_features_test.shape
+    # normalization
+    eftest_norm = np.linalg.norm(embedded_features_test, axis=1)
+    eftest_norm = np.expand_dims(eftest_norm, axis=1)
+    embedded_features_test = embedded_features_test / eftest_norm
+
     hnsw = HNSW('l2', m=4, ef=8, Codewords=Codewords, N_books=N_books)
     widgets = ['Progress: ', Percentage(), ' ', Bar('#'), ' ', Timer(), ' ', ETA()]
     pbar = ProgressBar(widgets=widgets, maxval=num_train).start()
@@ -543,9 +558,10 @@ def matching_HNSW_PQ(K, Codewords, embedded_features_test, CW_idx):
         hnsw.add(CW_idx_unique[i])
         pbar.update(i + 1)
     pbar.finish()
-    # file_path = 'outputs/' + 'HNSW_PQ.pkl'
-    # afile = open(file_path, "wb")
-    # pickle.dump(hnsw, afile)
+
+    file_path = 'outputs/' + 'HNSW_PQ.pkl'
+    afile = open(file_path, "wb")
+    pickle.dump(hnsw, afile)
     
     # Searching
     # with open(file_path, 'rb') as pickle_file:
@@ -555,6 +571,71 @@ def matching_HNSW_PQ(K, Codewords, embedded_features_test, CW_idx):
     for row in range(num_test):
         query = embedded_features_test[row, :]
         # K_unique = 10
+        # K_unique = num_train
+        K_unique = K
+        idx_unique = np.array(hnsw.search(query, K_unique, ef=K_unique))[:, 0].astype('int')
+        if len(idx_unique) < K_unique:
+            idx_miss = np.where(np.in1d(range(K_unique), idx_unique) == False)[0]
+            idx_unique = np.concatenate((idx_unique, idx_miss))
+        idx_recover = np.concatenate([np.where(reverse_idx == t) for t in idx_unique], axis=1)
+        idx_recover = np.squeeze(idx_recover, axis=0)
+        idx[row, :] = idx_recover[:K]
+    t2 = time.time()
+    time_per_query = (t2 - t1) / num_test
+    return idx, time_per_query
+
+
+def matching_HNSW_NanoPQ(K, embedded_features, embedded_features_test, N_books, N_words):
+    # normalization
+    eftrain_norm = np.linalg.norm(embedded_features, axis=1)
+    eftrain_norm = np.expand_dims(eftrain_norm, axis=1)
+    eftest_norm = np.linalg.norm(embedded_features_test, axis=1)
+    eftest_norm = np.expand_dims(eftest_norm, axis=1)
+    embedded_features = embedded_features / eftrain_norm
+    embedded_features_test = embedded_features_test / eftest_norm
+
+    pq = nanopq.PQ(M=N_books, Ks=N_words, verbose=True)
+    pq.fit(vecs=embedded_features, iter=20, seed=42)
+    # Save PQ object
+    PQfile_path = 'outputs/' + 'NanoPQ.pkl'
+    aPQfile = open(PQfile_path, "wb")
+    pickle.dump(pq, aPQfile)
+    #Load PQ object
+    # with open(PQfile_path, 'rb') as pickle_file:
+    #     pq = pickle.load(pickle_file)
+    
+    CW_idx = pq.encode(vecs=embedded_features)
+    # embedded_recon = pq.decode(codes=CW_idx)
+    Codewords = pq.codewords
+    Codewords = np.transpose(Codewords, (1, 0, 2))
+    Codewords = np.reshape(Codewords, (N_words, -1))
+
+    CW_idx_unique, reverse_idx = np.unique(CW_idx, return_inverse=True, axis=0)
+    num_train, _ = CW_idx_unique.shape
+    num_test, _ = embedded_features_test.shape
+    hnsw = HNSW('l2', m=4, ef=8, Codewords=Codewords, N_books=N_books)
+    widgets = ['Progress: ', Percentage(), ' ', Bar('#'), ' ', Timer(), ' ', ETA()]
+    pbar = ProgressBar(widgets=widgets, maxval=num_train).start()
+    # Building HNSW graph
+    print("==> Building HNSW graph ...")
+    for i in range(num_train):
+        hnsw.add(CW_idx_unique[i])
+        pbar.update(i + 1)
+    pbar.finish()
+
+    # Save HNSW object
+    file_path = 'outputs/' + 'HNSW_NanoPQ.pkl'
+    afile = open(file_path, "wb")
+    pickle.dump(hnsw, afile)
+
+    # Load HNSW object
+    # with open(file_path, 'rb') as pickle_file:
+    #     hnsw = pickle.load(pickle_file)
+    
+    idx = np.zeros((num_test, K), dtype=np.int64)
+    t1 = time.time()
+    for row in range(num_test):
+        query = embedded_features_test[row, :]
         # K_unique = num_train
         K_unique = K
         idx_unique = np.array(hnsw.search(query, K_unique, ef=K_unique))[:, 0].astype('int')
@@ -716,6 +797,8 @@ def matching_PQ_HNSW_faiss(K, embedded_features_train, embedded_features_test, p
     eftest_norm = np.expand_dims(eftest_norm, axis=1)
     embedded_features_train = embedded_features_train / eftrain_norm
     embedded_features_test = embedded_features_test / eftest_norm
+    embedded_features_train=np.ascontiguousarray(embedded_features_train)
+    embedded_features_test=np.ascontiguousarray(embedded_features_test)
 
     res = faiss.StandardGpuResources()
     index = faiss.IndexHNSWPQ(feature_len, pq_M, M)
