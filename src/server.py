@@ -221,7 +221,7 @@ for dataset in datasets:
     file_vecs = 'outputs/' + dataset + '_vecs.npy'
     vecs = np.concatenate([vecs, np.load(file_vecs)], axis=1)
     # images = [cfg['im_fname'](cfg, i) for i in range(cfg['n'])]
-    images_r_path = [cfg['im_fname'](cfg, i).split('\\')[-1] for i in range(cfg['n'])]
+    images_r_path = [cfg['im_fname'](cfg, i).split('/')[-1] for i in range(cfg['n'])]
     images = ['/static/test/' + dataset + '/jpg/' + i for i in images_r_path]
     img_paths = img_paths + images
 # TODO: give a parameter to self-made dataset
