@@ -6,7 +6,7 @@ import pickle
 import numpy as np
 from PIL import Image
 from torchvision import transforms
-from src.imageretrievalnet import init_network, extract_vectors, extract_vectors_single
+from src.imageretrievalnet import OUTPUT_DIM, init_network, extract_vectors, extract_vectors_single
 from datetime import datetime as dt
 from flask import Flask, request, render_template
 from pathlib import Path
@@ -213,8 +213,8 @@ else:
 #############
 # Read image features
 datasets = args.datasets.split(',')
-# TODO: give a parameter to 2048
-vecs = np.empty((2048, 0))
+outputdim = state['meta']['outputdim']
+vecs = np.empty((outputdim, 0))
 img_paths = []
 for dataset in datasets:
     cfg = configdataset(dataset, os.path.join(get_data_root(), 'test'))
@@ -232,6 +232,13 @@ vecs = np.concatenate([vecs, path_feature['feature']], axis=1)
 images = ['/static/test/' + 'Andrea/' + i for i in path_feature['path']]
 img_paths = img_paths + images
 # img_r_paths = images_r_path +[i for i in path_feature['path']]
+
+file_path_feature = 'outputs/' + 'flickr100k' + '_path_feature.pkl'
+with open(file_path_feature, 'rb') as pickle_file:
+    path_feature = pickle.load(pickle_file)
+vecs = np.concatenate([vecs, path_feature['feature']], axis=1)
+images = ['/static/test/' + 'flickr100k/' + i for i in path_feature['path']]
+img_paths = img_paths + images
 
 K = args.K_nearest_neighbour
 
