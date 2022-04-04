@@ -8,9 +8,9 @@ import argparse
 import pickle
 import torch as T
 import numpy as np
-# import numba
-# import numba.cuda
-# from numba import jit
+import numba
+import numba.cuda
+from numba import jit
 
 import torchvision
 import torch.nn as nn
@@ -114,24 +114,6 @@ class HNSW(object):
         dist_table = np.sum((self.reshaped_C-reshaped_q)**2, axis=2)
         return dist_table
 
-        # Codewords = self.Codewords  # N_words * (N_books * L_word)
-        # N_words, dim = Codewords.shape
-        # L_word = int(dim / N_books)
-        # query = np.expand_dims(query, axis=0)
-        # query = T.from_numpy(query)
-        # q = T.split(query, L_word, 1)
-        # # Codewords = T.from_numpy(Codewords)
-        # # c = T.split(Codewords, L_word, 1)
-        # for i in range(N_books):
-        #     if i == 0:
-        #         dist_table = squared_distances(q[i], self.c[i])
-        #         dist_table = T.unsqueeze(dist_table, 2)
-        #     else:
-        #         temp = squared_distances(q[i], self.c[i])
-        #         temp = T.unsqueeze(temp, 2)
-        #         dist_table = T.cat((dist_table, temp), dim=2)
-        # dist_table = dist_table.cpu().detach().numpy()
-        # return np.squeeze(dist_table, axis=0)
 
     def _distance(self, x, y):
         return self.distance_func(x, [y])[0]
@@ -509,23 +491,22 @@ class HNSW(object):
 def matching_HNSW(K, embedded_features_train, embedded_features_test):
     num_train, feature_len = embedded_features_train.shape
     num_test, _ = embedded_features_test.shape
-    # # hnsw = HNSW('l2', m0=4, ef=16)
-    # hnsw = HNSW('l2', m=4, ef=8)
-    # widgets = ['Progress: ', Percentage(), ' ', Bar('#'), ' ', Timer(), ' ', ETA()]
-    # pbar = ProgressBar(widgets=widgets, maxval=num_train).start()
-    # # Building HNSW graph
-    # print("==> Building HNSW graph ...")
-    # for i in range(len(embedded_features_train)):
-    #     hnsw.add(embedded_features_train[i])
-    #     pbar.update(i + 1)
-    # pbar.finish()
+    hnsw = HNSW('l2', m=4, ef=8)
+    widgets = ['Progress: ', Percentage(), ' ', Bar('#'), ' ', Timer(), ' ', ETA()]
+    pbar = ProgressBar(widgets=widgets, maxval=num_train).start()
+    # Building HNSW graph
+    print("==> Building HNSW graph ...")
+    for i in range(len(embedded_features_train)):
+        hnsw.add(embedded_features_train[i])
+        pbar.update(i + 1)
+    pbar.finish()
     file_path = 'outputs/' + 'HNSW.pkl'
     # afile = open(file_path, "wb")
     # pickle.dump(hnsw, afile)
 
     # Searching
-    with open(file_path, 'rb') as pickle_file:
-        hnsw = pickle.load(pickle_file)
+    # with open(file_path, 'rb') as pickle_file:
+    #     hnsw = pickle.load(pickle_file)
     idx = np.zeros((num_test, K), dtype=np.int64)
     t1 = time.time()
     for row in range(num_test):
@@ -598,9 +579,9 @@ def matching_HNSW_NanoPQ(K, embedded_features, embedded_features_test, N_books, 
     pq.fit(vecs=embedded_features, iter=20, seed=42)
     # Save PQ object
     PQfile_path = 'outputs/' + 'NanoPQ.pkl'
-    aPQfile = open(PQfile_path, "wb")
-    pickle.dump(pq, aPQfile)
-    #Load PQ object
+    # aPQfile = open(PQfile_path, "wb")
+    # pickle.dump(pq, aPQfile)
+    # Load PQ object
     # with open(PQfile_path, 'rb') as pickle_file:
     #     pq = pickle.load(pickle_file)
     
@@ -612,6 +593,9 @@ def matching_HNSW_NanoPQ(K, embedded_features, embedded_features_test, N_books, 
 
     CW_idx_unique, reverse_idx = np.unique(CW_idx, return_inverse=True, axis=0)
     num_train, _ = CW_idx_unique.shape
+    key_list = range(num_train)
+    value_list = [np.where(reverse_idx == t)[0] for t in key_list]
+    dict_recover = dict(zip(key_list, value_list))
     num_test, _ = embedded_features_test.shape
     hnsw = HNSW('l2', m=4, ef=8, Codewords=Codewords, N_books=N_books)
     widgets = ['Progress: ', Percentage(), ' ', Bar('#'), ' ', Timer(), ' ', ETA()]
@@ -625,8 +609,8 @@ def matching_HNSW_NanoPQ(K, embedded_features, embedded_features_test, N_books, 
 
     # Save HNSW object
     file_path = 'outputs/' + 'HNSW_NanoPQ.pkl'
-    afile = open(file_path, "wb")
-    pickle.dump(hnsw, afile)
+    # afile = open(file_path, "wb")
+    # pickle.dump(hnsw, afile)
 
     # Load HNSW object
     # with open(file_path, 'rb') as pickle_file:
@@ -642,8 +626,7 @@ def matching_HNSW_NanoPQ(K, embedded_features, embedded_features_test, N_books, 
         if len(idx_unique) < K_unique:
             idx_miss = np.where(np.in1d(range(K_unique), idx_unique) == False)[0]
             idx_unique = np.concatenate((idx_unique, idx_miss))
-        idx_recover = np.concatenate([np.where(reverse_idx == t) for t in idx_unique], axis=1)
-        idx_recover = np.squeeze(idx_recover, axis=0)
+        idx_recover = np.concatenate([dict_recover[i] for i in idx_unique])
         idx[row, :] = idx_recover[:K]
     t2 = time.time()
     time_per_query = (t2 - t1) / num_test
@@ -693,26 +676,6 @@ def matching_fractional_dis(K, embedded_features_train, embedded_features_test):
     #     query = embedded_features_test[row, :]
     #     dist = np.linalg.norm(query-embedded_features_train, axis=1)
     #     idx[row, :] = np.argpartition(dist, K-1)[:K]
-    t2 = time.time()
-    time_per_query = (t2-t1)/num_test
-    return idx, time_per_query
-
-
-def matching_L2_faiss(K, embedded_features_train, embedded_features_test):
-    t1 = time.time()
-    num_train, feature_len = embedded_features_train.shape
-    num_test, _ = embedded_features_test.shape
-    # normalization
-    eftrain_norm = np.linalg.norm(embedded_features_train, axis=1)
-    eftrain_norm = np.expand_dims(eftrain_norm, axis=1)
-    eftest_norm = np.linalg.norm(embedded_features_test, axis=1)
-    eftest_norm = np.expand_dims(eftest_norm, axis=1)
-    embedded_features_train = embedded_features_train / eftrain_norm
-    embedded_features_test = embedded_features_test / eftest_norm
-
-    index = faiss.IndexFlatL2(feature_len)  # build the index
-    index.add(embedded_features_train)  # add vectors to the index
-    _, idx = index.search(embedded_features_test, K)
     t2 = time.time()
     time_per_query = (t2-t1)/num_test
     return idx, time_per_query
