@@ -551,9 +551,8 @@ def matching_HNSW_PQ(K, Codewords, embedded_features_test, CW_idx):
     t1 = time.time()
     for row in range(num_test):
         query = embedded_features_test[row, :]
-        # K_unique = 10
         # K_unique = num_train
-        K_unique = K
+        K_unique = min(K, num_train)
         idx_unique = np.array(hnsw.search(query, K_unique, ef=K_unique))[:, 0].astype('int')
         if len(idx_unique) < K_unique:
             idx_miss = np.where(np.in1d(range(K_unique), idx_unique) == False)[0]
@@ -621,7 +620,7 @@ def matching_HNSW_NanoPQ(K, embedded_features, embedded_features_test, N_books, 
     for row in range(num_test):
         query = embedded_features_test[row, :]
         # K_unique = num_train
-        K_unique = K
+        K_unique = min(K, num_train)
         idx_unique = np.array(hnsw.search(query, K_unique, ef=K_unique))[:, 0].astype('int')
         if len(idx_unique) < K_unique:
             idx_miss = np.where(np.in1d(range(K_unique), idx_unique) == False)[0]
