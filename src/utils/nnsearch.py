@@ -488,25 +488,33 @@ class HNSW(object):
                 return
 
 
-def matching_HNSW(K, embedded_features_train, embedded_features_test):
+def matching_HNSW(K, embedded_features_train, embedded_features_test, dataset, ifgenerate=True):
     num_train, feature_len = embedded_features_train.shape
     num_test, _ = embedded_features_test.shape
-    hnsw = HNSW('l2', m=4, ef=8)
-    widgets = ['Progress: ', Percentage(), ' ', Bar('#'), ' ', Timer(), ' ', ETA()]
-    pbar = ProgressBar(widgets=widgets, maxval=num_train).start()
-    # Building HNSW graph
-    print("==> Building HNSW graph ...")
-    for i in range(len(embedded_features_train)):
-        hnsw.add(embedded_features_train[i])
-        pbar.update(i + 1)
-    pbar.finish()
-    file_path = 'outputs/' + 'HNSW.pkl'
-    # afile = open(file_path, "wb")
-    # pickle.dump(hnsw, afile)
+    if not os.path.exists('outputs/' + dataset):
+            os.makedirs('outputs/' + dataset)
 
-    # Searching
-    # with open(file_path, 'rb') as pickle_file:
-    #     hnsw = pickle.load(pickle_file)
+    file_path = 'outputs/' + dataset + '/' + 'HNSW.pkl'
+
+    if ifgenerate:
+        hnsw = HNSW('l2', m=4, ef=8)
+        widgets = ['Progress: ', Percentage(), ' ', Bar('#'), ' ', Timer(), ' ', ETA()]
+        pbar = ProgressBar(widgets=widgets, maxval=num_train).start()
+        # Building HNSW graph
+        print("==> Building HNSW graph ...")
+        for i in range(len(embedded_features_train)):
+            hnsw.add(embedded_features_train[i])
+            pbar.update(i + 1)
+        pbar.finish()
+        # Save HNSW object
+        afile = open(file_path, "wb")
+        with open(file_path, 'wb') as afile:
+            pickle.dump(hnsw, afile)   
+    else:
+        # Load HNSW object
+        with open(file_path, 'rb') as pickle_file:
+            hnsw = pickle.load(pickle_file)
+
     idx = np.zeros((num_test, K), dtype=np.int64)
     t1 = time.time()
     for row in range(num_test):
@@ -565,7 +573,7 @@ def matching_HNSW_PQ(K, Codewords, embedded_features_test, CW_idx):
     return idx, time_per_query
 
 
-def matching_HNSW_NanoPQ(K, embedded_features, embedded_features_test, N_books, N_words):
+def matching_HNSW_NanoPQ(K, embedded_features, embedded_features_test, N_books, N_words, dataset, ifgenerate=True):
     # normalization
     eftrain_norm = np.linalg.norm(embedded_features, axis=1)
     eftrain_norm = np.expand_dims(eftrain_norm, axis=1)
@@ -574,15 +582,21 @@ def matching_HNSW_NanoPQ(K, embedded_features, embedded_features_test, N_books, 
     embedded_features = embedded_features / eftrain_norm
     embedded_features_test = embedded_features_test / eftest_norm
 
-    pq = nanopq.PQ(M=N_books, Ks=N_words, verbose=True)
-    pq.fit(vecs=embedded_features, iter=20, seed=42)
-    # Save PQ object
-    PQfile_path = 'outputs/' + 'NanoPQ.pkl'
-    # aPQfile = open(PQfile_path, "wb")
-    # pickle.dump(pq, aPQfile)
-    # Load PQ object
-    # with open(PQfile_path, 'rb') as pickle_file:
-    #     pq = pickle.load(pickle_file)
+    if not os.path.exists('outputs/' + dataset):
+            os.makedirs('outputs/' + dataset)
+
+    PQfile_path = 'outputs/' + dataset + '/' + 'NanoPQ.pkl'
+    if ifgenerate:
+        pq = nanopq.PQ(M=N_books, Ks=N_words, verbose=True)
+        pq.fit(vecs=embedded_features, iter=20, seed=42)
+        # Save PQ object
+        aPQfile = open(PQfile_path, "wb")
+        with open(PQfile_path, 'wb') as aPQfile:
+            pickle.dump(pq, aPQfile)
+    else:
+        # Load PQ object
+        with open(PQfile_path, 'rb') as pickle_file:
+            pq = pickle.load(pickle_file)
     
     CW_idx = pq.encode(vecs=embedded_features)
     # embedded_recon = pq.decode(codes=CW_idx)
@@ -596,24 +610,27 @@ def matching_HNSW_NanoPQ(K, embedded_features, embedded_features_test, N_books, 
     value_list = [np.where(reverse_idx == t)[0] for t in key_list]
     dict_recover = dict(zip(key_list, value_list))
     num_test, _ = embedded_features_test.shape
-    hnsw = HNSW('l2', m=4, ef=8, Codewords=Codewords, N_books=N_books)
-    widgets = ['Progress: ', Percentage(), ' ', Bar('#'), ' ', Timer(), ' ', ETA()]
-    pbar = ProgressBar(widgets=widgets, maxval=num_train).start()
-    # Building HNSW graph
-    print("==> Building HNSW graph ...")
-    for i in range(num_train):
-        hnsw.add(CW_idx_unique[i])
-        pbar.update(i + 1)
-    pbar.finish()
 
-    # Save HNSW object
-    file_path = 'outputs/' + 'HNSW_NanoPQ.pkl'
-    # afile = open(file_path, "wb")
-    # pickle.dump(hnsw, afile)
+    file_path = 'outputs/' + dataset + '/' + 'HNSW_NanoPQ.pkl'
 
-    # Load HNSW object
-    # with open(file_path, 'rb') as pickle_file:
-    #     hnsw = pickle.load(pickle_file)
+    if ifgenerate:
+        hnsw = HNSW('l2', m=4, ef=8, Codewords=Codewords, N_books=N_books)
+        widgets = ['Progress: ', Percentage(), ' ', Bar('#'), ' ', Timer(), ' ', ETA()]
+        pbar = ProgressBar(widgets=widgets, maxval=num_train).start()
+        # Building HNSW graph
+        print("==> Building HNSW graph ...")
+        for i in range(num_train):
+            hnsw.add(CW_idx_unique[i])
+            pbar.update(i + 1)
+        pbar.finish()
+        # Save HNSW object
+        afile = open(file_path, "wb")
+        with open(file_path, 'wb') as afile:
+            pickle.dump(hnsw, afile)   
+    else:
+        # Load HNSW object
+        with open(file_path, 'rb') as pickle_file:
+            hnsw = pickle.load(pickle_file)
     
     idx = np.zeros((num_test, K), dtype=np.int64)
     t1 = time.time()
@@ -792,7 +809,7 @@ def Nano_PQ(embedded_features, N_books, N_words):
 
     return embedded_code, Codewords, embedded_recon
 
-def matching_Nano_PQ(K, embedded_features_train, embedded_features_test, N_books, n_bits_perbook):
+def matching_Nano_PQ(K, embedded_features_train, embedded_features_test, N_books, n_bits_perbook, dataset, ifgenerate=True):
     # https://nanopq.readthedocs.io/en/latest/source/tutorial.html#basic-of-pq
     N_words = 2**n_bits_perbook
     num_train, feature_len = embedded_features_train.shape
@@ -805,8 +822,22 @@ def matching_Nano_PQ(K, embedded_features_train, embedded_features_test, N_books
     embedded_features_train = embedded_features_train / eftrain_norm
     embedded_features_test = embedded_features_test / eftest_norm
 
-    pq = nanopq.PQ(M=N_books, Ks=N_words, verbose=True)
-    pq.fit(vecs=embedded_features_train, iter=20, seed=42)
+    if not os.path.exists('outputs/' + dataset):
+        os.makedirs('outputs/' + dataset)
+
+    PQfile_path = 'outputs/' + dataset + '/' + 'PQ.pkl'
+    if ifgenerate:
+        pq = nanopq.PQ(M=N_books, Ks=N_words, verbose=True)
+        pq.fit(vecs=embedded_features_train, iter=20, seed=42)
+        # Save PQ object
+        aPQfile = open(PQfile_path, "wb")
+        with open(PQfile_path, 'wb') as aPQfile:
+            pickle.dump(pq, aPQfile)
+    else:
+        # Load PQ object
+        with open(PQfile_path, 'rb') as pickle_file:
+            pq = pickle.load(pickle_file)
+
     embedded_train_code = pq.encode(vecs=embedded_features_train)
     t1 = time.time()
     idx = np.zeros((num_test, K), dtype=np.int64)
@@ -932,14 +963,23 @@ def matching_Greedyhash(K, hash_codes_train, hash_codes_test):
     return idx, time_per_query
 
 
-def matching_ANNOY(K, embedded_features_train, embedded_features_test, metric):
+def matching_ANNOY(K, embedded_features_train, embedded_features_test, metric, dataset, ifgenerate=True):
     num_train, feature_len = embedded_features_train.shape
     num_test, _ = embedded_features_test.shape
-    t = annoy.AnnoyIndex(feature_len, metric)
-    n_trees = 5
-    for n, x in enumerate(embedded_features_train):
-        t.add_item(n, x)
-    t.build(n_trees)
+    
+    if not os.path.exists('outputs/' + dataset):
+            os.makedirs('outputs/' + dataset)
+
+    if ifgenerate:
+        t = annoy.AnnoyIndex(feature_len, metric)
+        n_trees = 5
+        for n, x in enumerate(embedded_features_train):
+            t.add_item(n, x)
+        t.build(n_trees)
+        t.save('outputs/' + dataset + '/' + 'test.ann')
+    else:
+        t = annoy.AnnoyIndex(feature_len, metric)
+        t.load('outputs/' + dataset + '/' + 'test.ann')
     idx = np.zeros((num_test, K), dtype=np.int64)
     t1 = time.time()
     for i in range(num_test):

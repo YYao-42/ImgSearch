@@ -15,6 +15,7 @@ def load_path_features(dataset):
     return vecs, img_r_path
 
 datasets = ['oxford5k', 'paris6k', 'roxford5k', 'rparis6k']
+# datasets = ['oxford5k']
 
 for dataset in datasets:
     file_vecs = 'outputs/' + dataset + '_vecs.npy'
@@ -22,21 +23,20 @@ for dataset in datasets:
     vecs = np.load(file_vecs)
     qvecs = np.load(file_qvecs)
 
-    flickr100k, _ = load_path_features('flickr100k')
-    vecs = np.concatenate((vecs, flickr100k), axis=1)
+    # flickr100k, _ = load_path_features('flickr100k')
+    # vecs = np.concatenate((vecs, flickr100k), axis=1)
     # search, rank, and print
     n_database = vecs.shape[1]
-    # K = n_database
-    K = 100
+    K = n_database
+    # K = 100
 
     # match_idx, time_per_query = matching_L2(K, vecs.T, qvecs.T)
-    match_idx, time_per_query = matching_Nano_PQ(K, vecs.T, qvecs.T, 16, 8)
-    # match_idx, time_per_query = matching_ANNOY(K, vecs.T, qvecs.T, 'euclidean')
-    # match_idx, time_per_query = matching_HNSW(K, vecs.T, qvecs.T)
-    # embedded_code, Codewords, _ = Nano_PQ(vecs.T, 16, 256)
-    # match_idx, time_per_query = matching_HNSW_PQ(K, Codewords, qvecs.T, embedded_code)
+    # match_idx, time_per_query = matching_Nano_PQ(K, vecs.T, qvecs.T, 16, 12, dataset, ifgenerate=False)
+    match_idx, time_per_query = matching_ANNOY(K, vecs.T, qvecs.T, 'euclidean', dataset, ifgenerate=False)
+    # match_idx, time_per_query = matching_HNSW(K, vecs.T, qvecs.T, dataset, ifgenerate=False)
+    # match_idx, time_per_query = matching_HNSW_NanoPQ(K, vecs.T, qvecs.T, 16, 256, dataset, ifgenerate=False)
 
     print('matching time per query: ', time_per_query)
-    # ranks = match_idx.T
-    # cfg = configdataset(dataset, os.path.join(get_data_root(), 'test'))
-    # compute_map_and_print(dataset, ranks, cfg['gnd'])
+    ranks = match_idx.T
+    cfg = configdataset(dataset, os.path.join(get_data_root(), 'test'))
+    compute_map_and_print(dataset, ranks, cfg['gnd'])
