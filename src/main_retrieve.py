@@ -361,12 +361,10 @@ def main():
             match_idx, time_per_query = matching_PQ_Net(K, Codewords, qvecs.T, N_books, CW_idx.T)
         else:
             match_idx, time_per_query = matching_L2(K, vecs.T, qvecs.T)
-            # match_idx, time_per_query = matching_Nano_PQ(K, vecs.T, qvecs.T, 16, 8)
-            # match_idx, time_per_query = matching_ANNOY(K, vecs.T, qvecs.T, 'euclidean')
-            # match_idx, time_per_query = matching_HNSW(K, vecs.T, qvecs.T)
-            # embedded_code, Codewords, _ = Nano_PQ(vecs.T, 16, 256)
-            # match_idx, time_per_query = matching_PQ_Net(K, Codewords, qvecs.T, 16, embedded_code)
-            # match_idx, time_per_query = matching_HNSW_PQ(K, Codewords, qvecs.T, embedded_code)
+            # match_idx, time_per_query = matching_Nano_PQ(K, vecs.T, qvecs.T, 16, 12, dataset, ifgenerate=False)
+            # match_idx, time_per_query = matching_ANNOY(K, vecs.T, qvecs.T, 'euclidean', dataset, ifgenerate=False)
+            # match_idx, time_per_query = matching_HNSW(K, vecs.T, qvecs.T, dataset, ifgenerate=False)
+            # match_idx, time_per_query = matching_HNSW_NanoPQ(K, vecs.T, qvecs.T, 16, 256, dataset, ifgenerate=False)
         print('matching time per query: ', time_per_query)
         ranks = match_idx.T
         compute_map_and_print(dataset, ranks, cfg['gnd'])
