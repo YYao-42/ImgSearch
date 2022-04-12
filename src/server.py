@@ -224,12 +224,14 @@ for dataset in datasets:
     images_r_path = [cfg['im_fname'](cfg, i).split('/')[-1] for i in range(cfg['n'])]
     images = ['/static/test/' + dataset + '/jpg/' + i for i in images_r_path]
     img_paths = img_paths + images
+
 # TODO: give a parameter to self-made dataset
 file_path_feature = 'outputs/' + 'Andrea' + '_path_feature.pkl'
 with open(file_path_feature, 'rb') as pickle_file:
     path_feature = pickle.load(pickle_file)
 vecs = np.concatenate([vecs, path_feature['feature']], axis=1)
-images = ['/static/test/' + 'Andrea/' + i for i in path_feature['path']]
+# images = ['/static/test/' + 'Andrea/' + i for i in path_feature['path']]
+images = ['/static/' + i for i in path_feature['path']]
 img_paths = img_paths + images
 # img_r_paths = images_r_path +[i for i in path_feature['path']]
 
@@ -237,7 +239,8 @@ file_path_feature = 'outputs/' + 'flickr100k' + '_path_feature.pkl'
 with open(file_path_feature, 'rb') as pickle_file:
     path_feature = pickle.load(pickle_file)
 vecs = np.concatenate([vecs, path_feature['feature']], axis=1)
-images = ['/static/test/' + 'flickr100k/' + i for i in path_feature['path']]
+# images = ['/static/test/' + 'flickr100k/' + i for i in path_feature['path']]
+images = ['/static/' + i for i in path_feature['path']]
 img_paths = img_paths + images
 
 K = args.K_nearest_neighbour
@@ -254,8 +257,6 @@ def index():
         uploaded_img_path = "src/static/uploaded/" + dt.now().isoformat().replace(":", ".") + "_" + file.filename
         img.save(uploaded_img_path)
         query_path = '/' + '/'.join(uploaded_img_path.split('/')[1:])
-        # qvec = np.random.rand(2048, 1)
-        # qvec = extract_vectors(net, uploaded_img_path, args.image_size, transform, ms=ms, msp=msp)
         qvec = extract_vectors_single(net, uploaded_img_path, args.image_size, transform, ms=ms, msp=msp)
         qvec = np.expand_dims(qvec.numpy(), axis=1)
         if Lw is not None:
@@ -263,13 +264,11 @@ def index():
             qvec = whitenapply(qvec, Lw['m'], Lw['P'])
 
         # Run search
-        match_idx, _ = matching_L2(K, vecs.T, qvec.T)
-        # match_idx, time_per_query = matching_Nano_PQ(K, vecs.T, qvecs.T, 16, 8)
-        # match_idx, time_per_query = matching_ANNOY(K, vecs.T, qvecs.T, 'euclidean')
-        # match_idx, time_per_query = matching_HNSW(K, vecs.T, qvecs.T)
-        # embedded_code, Codewords, _ = Nano_PQ(vecs.T, 16, 256)
-        # match_idx, time_per_query = matching_PQ_Net(K, Codewords, qvecs.T, 16, embedded_code)
-        # match_idx, time_per_query = matching_HNSW_PQ(K, Codewords, qvecs.T, embedded_code)
+        # match_idx, _ = matching_L2(K, vecs.T, qvec.T)
+        # match_idx, _ = matching_Nano_PQ(K, vecs.T, qvec.T, 16, 12, dataset, ifgenerate=False)
+        match_idx, _ = matching_ANNOY(K, vecs.T, qvec.T, 'euclidean', dataset='server', ifgenerate=True)
+        # match_idx, _ = matching_HNSW(K, vecs.T, qvec.T, dataset, ifgenerate=False)
+        # match_idx, _ = matching_HNSW_NanoPQ(K, vecs.T, qvec.T, 16, 256, dataset, ifgenerate=False)
         
         # TODO: id -> dist[id]
         scores = [(id, img_paths[id]) for id in np.squeeze(match_idx)]

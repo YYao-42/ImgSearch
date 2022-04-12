@@ -7,6 +7,8 @@ from src.utils.evaluate import compute_map_and_print
 from src.utils.general import get_data_root
 
 def load_path_features(dataset):
+    if '/' in dataset:
+        dataset = dataset.replace('/', '_')
     file_path_feature = 'outputs/' + dataset + '_path_feature.pkl'
     with open(file_path_feature, 'rb') as pickle_file:
         path_feature = pickle.load(pickle_file)
@@ -32,7 +34,7 @@ for dataset in datasets:
 
     # match_idx, time_per_query = matching_L2(K, vecs.T, qvecs.T)
     # match_idx, time_per_query = matching_Nano_PQ(K, vecs.T, qvecs.T, 16, 12, dataset, ifgenerate=False)
-    match_idx, time_per_query = matching_ANNOY(K, vecs.T, qvecs.T, 'euclidean', dataset, ifgenerate=False)
+    match_idx, time_per_query = matching_ANNOY(K, vecs.T, qvecs.T, 'euclidean', dataset, ifgenerate=True)
     # match_idx, time_per_query = matching_HNSW(K, vecs.T, qvecs.T, dataset, ifgenerate=False)
     # match_idx, time_per_query = matching_HNSW_NanoPQ(K, vecs.T, qvecs.T, 16, 256, dataset, ifgenerate=False)
 

@@ -77,6 +77,14 @@ parser.add_argument('--gpu-id', '-g', default='0', metavar='N',
 # parse the arguments
 args = parser.parse_args()
 
+def path_all_jpg(directory, start):
+    paths = []
+    for dirpath, _, filenames in os.walk(directory):
+        paths = paths + [os.path.join(dirpath, f) for f in filenames if f.endswith(".jpg")]
+        # paths = paths + [os.path.join(dirpath, f) for f in filenames]
+    rel_paths = [os.path.relpath(path, start) for path in paths]
+    return paths, rel_paths
+
 def save_path_feature(dataset, vecs, img_r_path):
     # save the dictionary of paths and features of images into a pkl file    
     isExist = os.path.exists('outputs')
@@ -87,12 +95,16 @@ def save_path_feature(dataset, vecs, img_r_path):
     path_feature['path'] = img_r_path
     path_feature['feature'] = vecs
 
+    if '/' in dataset:
+        dataset = dataset.replace('/', '_')
     file_path_feature = 'outputs/' + dataset + '_path_feature.pkl'
     afile = open(file_path_feature, "wb")
     pickle.dump(path_feature, afile)
     afile.close()
 
 def load_path_features(dataset):
+    if '/' in dataset:
+        dataset = dataset.replace('/', '_')
     file_path_feature = 'outputs/' + dataset + '_path_feature.pkl'
     with open(file_path_feature, 'rb') as pickle_file:
         path_feature = pickle.load(pickle_file)
@@ -102,9 +114,12 @@ def load_path_features(dataset):
 
 def extr_selfmade_dataset(net, selfmadedataset, transform, ms, msp, Lw):
     # folder_path = os.path.join(get_data_root(), 'test', selfmadedataset)
-    folder_path = os.path.join('/home/yuanyuanyao/data/test', selfmadedataset) # local disk
-    img_r_path = os.listdir(folder_path)
-    images = [os.path.join(folder_path, rel_path) for rel_path in img_r_path]
+    # local disk
+    # folder_path = os.path.join('/home/yuanyuanyao/data/test', selfmadedataset) 
+    # img_r_path = os.listdir(folder_path)
+    # images = [os.path.join(folder_path, rel_path) for rel_path in img_r_path]
+    folder_path = os.path.join('/home/yuanyuanyao/data/test', selfmadedataset)
+    images, img_r_path = path_all_jpg(folder_path, start="/home/yuanyuanyao/data/")
     # extract database vectors
     print('>> {}: database images...'.format(selfmadedataset))
     vecs = extract_vectors(net, images, args.image_size, transform, ms=ms, msp=msp)
@@ -353,7 +368,7 @@ def main():
         # search, rank, and print
         n_database = vecs.shape[1]
         K = n_database
-        # K = 10
+        # K = 100
         if args.deep_quantization:
             CW_idx = np.load(file_CW_idx)
             Codewords = np.load(file_Codewords)
@@ -380,48 +395,51 @@ def main():
 
         # Visualization
         # Visualize the selected query image and its matching images
-        gnd = cfg['gnd']
-        K_show = 20
-        idx_select = 1
-        query_image = qimages[idx_select]
-        matching_images = [images[j] for j in match_idx[idx_select, :K_show]]
-        plt.close('all')
-        plt.figure(figsize=(10, 4), dpi=80)
-        ax = plt.subplot2grid((2, K_show), (0, 0))
-        ax.axis('off')
-        ax.set_title('Query')
-        img = mpimg.imread(query_image)
-        plt.imshow(img)
-        for i in range(K_show):
-            if dataset == 'oxford5k' or dataset == 'paris6k':
-                if np.in1d(match_idx[idx_select, i], gnd[idx_select]['ok'])[0]:
-                    plt.rcParams["axes.edgecolor"] = "green"
-                else:
-                    plt.rcParams["axes.edgecolor"] = "red"
-            if dataset == 'roxford5k' or dataset == 'rparis6k':
-                if np.in1d(match_idx[idx_select, i], gnd[idx_select]['easy'])[0]:
-                    plt.rcParams["axes.edgecolor"] = "green"
-                elif np.in1d(match_idx[idx_select, i], gnd[idx_select]['hard'])[0]:
-                    plt.rcParams["axes.edgecolor"] = "blue"
-                elif np.in1d(match_idx[idx_select, i], gnd[idx_select]['junk'])[0]:
-                    plt.rcParams["axes.edgecolor"] = "red"
-            plt.rcParams["axes.linewidth"] = 2.50
-            ax = plt.subplot2grid((2, K_show), (1, i))
-            ax.xaxis.set_ticks([])
-            ax.yaxis.set_ticks([])
-            ax.set_title('Match #' + str(i + 1))
-            img = mpimg.imread(matching_images[i])
-            plt.imshow(img)
-        plt.tight_layout(pad=2)
-        file_vis_path = 'outputs/' + dataset + '_' + str(idx_select) + '_vis.png'
-        plt.savefig(file_vis_path)
+        # gnd = cfg['gnd']
+        # K_show = 20
+        # idx_select = 1
+        # query_image = qimages[idx_select]
+        # matching_images = [images[j] for j in match_idx[idx_select, :K_show]]
+        # plt.close('all')
+        # plt.figure(figsize=(10, 4), dpi=80)
+        # ax = plt.subplot2grid((2, K_show), (0, 0))
+        # ax.axis('off')
+        # ax.set_title('Query')
+        # img = mpimg.imread(query_image)
+        # plt.imshow(img)
+        # for i in range(K_show):
+        #     if dataset == 'oxford5k' or dataset == 'paris6k':
+        #         if np.in1d(match_idx[idx_select, i], gnd[idx_select]['ok'])[0]:
+        #             plt.rcParams["axes.edgecolor"] = "green"
+        #         else:
+        #             plt.rcParams["axes.edgecolor"] = "red"
+        #     if dataset == 'roxford5k' or dataset == 'rparis6k':
+        #         if np.in1d(match_idx[idx_select, i], gnd[idx_select]['easy'])[0]:
+        #             plt.rcParams["axes.edgecolor"] = "green"
+        #         elif np.in1d(match_idx[idx_select, i], gnd[idx_select]['hard'])[0]:
+        #             plt.rcParams["axes.edgecolor"] = "blue"
+        #         elif np.in1d(match_idx[idx_select, i], gnd[idx_select]['junk'])[0]:
+        #             plt.rcParams["axes.edgecolor"] = "red"
+        #     plt.rcParams["axes.linewidth"] = 2.50
+        #     ax = plt.subplot2grid((2, K_show), (1, i))
+        #     ax.xaxis.set_ticks([])
+        #     ax.yaxis.set_ticks([])
+        #     ax.set_title('Match #' + str(i + 1))
+        #     img = mpimg.imread(matching_images[i])
+        #     plt.imshow(img)
+        # plt.tight_layout(pad=2)
+        # file_vis_path = 'outputs/' + dataset + '_' + str(idx_select) + '_vis.png'
+        # plt.savefig(file_vis_path)
 
         print("extracting time per query : ", qextract_per_query)
         # print("retrieve time per query: ", retrieve_per_query)
         print('>> {}: whole elapsed time: {}'.format(dataset, htime(time.time()-start)))
 
+        # Extract features of selfmade datasets
         # extr_selfmade_dataset(net, 'Andrea', transform, ms, msp, Lw)
         # extr_selfmade_dataset(net, 'flickr100k', transform, ms, msp, Lw)
+        # extr_selfmade_dataset(net, 'Custom/database', transform, ms, msp, Lw)
+        # extr_selfmade_dataset(net, 'Custom/query', transform, ms, msp, Lw)
 
 
 if __name__ == '__main__':
