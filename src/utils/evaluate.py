@@ -150,3 +150,23 @@ def compute_map_and_print(dataset, ranks, gnd, kappas=[1, 5, 10]):
 
         print('>> {}: mAP E: {}, M: {}, H: {}'.format(dataset, np.around(mapE*100, decimals=2), np.around(mapM*100, decimals=2), np.around(mapH*100, decimals=2)))
         print('>> {}: mP@k{} E: {}, M: {}, H: {}'.format(dataset, kappas, np.around(mprE*100, decimals=2), np.around(mprM*100, decimals=2), np.around(mprH*100, decimals=2)))
+
+
+def mAP_custom(K, matching_idx, paths_q, paths_d):
+    mAP = 0
+    num_query = len(paths_q)
+    label_d = [path.split('/')[-2] for path in paths_d]
+    for i in range(num_query):
+        label_q = paths_q[i].split('/')[-2]
+        TP_idx = [index for index, value in enumerate(label_d) if value == label_q]
+        denominator = min(len(TP_idx), K)
+        count = 0
+        matched = np.zeros(K, dtype=np.int64)
+        for j in range(K):
+            if matching_idx[i, j] in TP_idx:
+                count += 1
+                matched[j] = count
+        AP = sum(matched/(np.array(range(K))+1))/denominator
+        mAP += AP
+    mAP /= num_query
+    return mAP
