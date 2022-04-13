@@ -18,6 +18,7 @@ from src.datasets.testdataset import configdataset
 from src.utils.nnsearch import *
 
 
+
 PRETRAINED = {
     'retrievalSfM120k-resnet101-gem'    : 'http://cmp.felk.cvut.cz/cnnimageretrieval/data/networks/retrieval-SfM-120k/retrievalSfM120k-resnet101-gem-b80fb85.pth',
     # new networks with whitening learned end-to-end
@@ -217,32 +218,16 @@ outputdim = state['meta']['outputdim']
 vecs = np.empty((outputdim, 0))
 img_paths = []
 for dataset in datasets:
-    cfg = configdataset(dataset, os.path.join(get_data_root(), 'test'))
-    file_vecs = 'outputs/' + dataset + '_vecs.npy'
-    vecs = np.concatenate([vecs, np.load(file_vecs)], axis=1)
-    # images = [cfg['im_fname'](cfg, i) for i in range(cfg['n'])]
-    images_r_path = [cfg['im_fname'](cfg, i).split('/')[-1] for i in range(cfg['n'])]
-    images = ['/static/test/' + dataset + '/jpg/' + i for i in images_r_path]
+    if dataset in ['oxford5k', 'paris6k', 'Custom']:
+        dataset = dataset + '_database'
+    file_path_feature = 'outputs/' + dataset + '_path_feature.pkl'
+    with open(file_path_feature, 'rb') as pickle_file:
+        path_feature = pickle.load(pickle_file)
+    vecs = np.concatenate([vecs, path_feature['feature']], axis=1)
+    images = ['/static/' + i for i in path_feature['path']]
     img_paths = img_paths + images
 
-# TODO: give a parameter to self-made dataset
-file_path_feature = 'outputs/' + 'Andrea' + '_path_feature.pkl'
-with open(file_path_feature, 'rb') as pickle_file:
-    path_feature = pickle.load(pickle_file)
-vecs = np.concatenate([vecs, path_feature['feature']], axis=1)
-# images = ['/static/test/' + 'Andrea/' + i for i in path_feature['path']]
-images = ['/static/' + i for i in path_feature['path']]
-img_paths = img_paths + images
-# img_r_paths = images_r_path +[i for i in path_feature['path']]
-
-file_path_feature = 'outputs/' + 'flickr100k' + '_path_feature.pkl'
-with open(file_path_feature, 'rb') as pickle_file:
-    path_feature = pickle.load(pickle_file)
-vecs = np.concatenate([vecs, path_feature['feature']], axis=1)
-# images = ['/static/test/' + 'flickr100k/' + i for i in path_feature['path']]
-images = ['/static/' + i for i in path_feature['path']]
-img_paths = img_paths + images
-
+rel_img_paths = [os.path.relpath(path, '/static/test/') for path in img_paths]
 K = args.K_nearest_neighbour
 
 @app.route('/', methods=['GET', 'POST'])
@@ -264,15 +249,13 @@ def index():
             qvec = whitenapply(qvec, Lw['m'], Lw['P'])
 
         # Run search
-        # match_idx, _ = matching_L2(K, vecs.T, qvec.T)
+        match_idx, _ = matching_L2(K, vecs.T, qvec.T)
         # match_idx, _ = matching_Nano_PQ(K, vecs.T, qvec.T, 16, 12, dataset, ifgenerate=False)
-        match_idx, _ = matching_ANNOY(K, vecs.T, qvec.T, 'euclidean', dataset='server', ifgenerate=True)
+        # match_idx, _ = matching_ANNOY(K, vecs.T, qvec.T, 'euclidean', dataset='server', ifgenerate=False)
         # match_idx, _ = matching_HNSW(K, vecs.T, qvec.T, dataset, ifgenerate=False)
         # match_idx, _ = matching_HNSW_NanoPQ(K, vecs.T, qvec.T, 16, 256, dataset, ifgenerate=False)
         
-        # TODO: id -> dist[id]
-        scores = [(id, img_paths[id]) for id in np.squeeze(match_idx)]
-        # scores = [(img_r_paths[id], img_paths[id]) for id in np.squeeze(match_idx)]
+        scores = [(rel_img_paths[id], img_paths[id]) for id in np.squeeze(match_idx)]
 
         return render_template('index.html',
                                query_path=query_path,

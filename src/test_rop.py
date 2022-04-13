@@ -20,10 +20,8 @@ datasets = ['oxford5k', 'paris6k', 'roxford5k', 'rparis6k']
 # datasets = ['oxford5k']
 
 for dataset in datasets:
-    file_vecs = 'outputs/' + dataset + '_vecs.npy'
-    file_qvecs = 'outputs/' + dataset + '_qvecs.npy'
-    vecs = np.load(file_vecs)
-    qvecs = np.load(file_qvecs)
+    vecs, _ = load_path_features(dataset + '_database')
+    qvecs, _ = load_path_features(dataset + '_query')
 
     # flickr100k, _ = load_path_features('flickr100k')
     # vecs = np.concatenate((vecs, flickr100k), axis=1)
@@ -32,9 +30,9 @@ for dataset in datasets:
     K = n_database
     # K = 100
 
-    # match_idx, time_per_query = matching_L2(K, vecs.T, qvecs.T)
+    match_idx, time_per_query = matching_L2(K, vecs.T, qvecs.T)
     # match_idx, time_per_query = matching_Nano_PQ(K, vecs.T, qvecs.T, 16, 12, dataset, ifgenerate=False)
-    match_idx, time_per_query = matching_ANNOY(K, vecs.T, qvecs.T, 'euclidean', dataset, ifgenerate=True)
+    # match_idx, time_per_query = matching_ANNOY(K, vecs.T, qvecs.T, 'euclidean', dataset, ifgenerate=True)
     # match_idx, time_per_query = matching_HNSW(K, vecs.T, qvecs.T, dataset, ifgenerate=False)
     # match_idx, time_per_query = matching_HNSW_NanoPQ(K, vecs.T, qvecs.T, 16, 256, dataset, ifgenerate=False)
 

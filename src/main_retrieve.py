@@ -298,11 +298,14 @@ def main():
         print('>> {}: Extracting...'.format(dataset))
 
         # prepare config structure for the test dataset
-        cfg = configdataset(dataset, os.path.join(get_data_root(), 'test'))
+        data_root = get_data_root()
+        cfg = configdataset(dataset, os.path.join(data_root, 'test'))
         images = [cfg['im_fname'](cfg, i) for i in range(cfg['n'])]
-        images_r_path = [cfg['im_fname'](cfg, i).split('/')[-1] for i in range(cfg['n'])]
+        images_r_path = [os.path.relpath(path, data_root) for path in images]
+        # images_r_path = [cfg['im_fname'](cfg, i).split('/')[-1] for i in range(cfg['n'])]
         qimages = [cfg['qim_fname'](cfg, i) for i in range(cfg['nq'])]
-        qimages_r_path = [cfg['qim_fname'](cfg, i).split('/')[-1] for i in range(cfg['nq'])]
+        qimages_r_path = [os.path.relpath(path, data_root) for path in qimages]
+        # qimages_r_path = [cfg['qim_fname'](cfg, i).split('/')[-1] for i in range(cfg['nq'])]
         try:
             bbxs = [tuple(cfg['gnd'][i]['bbx']) for i in range(cfg['nq'])]
         except:
@@ -342,17 +345,9 @@ def main():
             qvecs = qvecs_lw
 
         # Save paths and features    
-
-        isExist = os.path.exists('outputs')
-        if not isExist:
-            os.makedirs('outputs')
-
-        file_vecs = 'outputs/' + dataset + '_vecs.npy'
-        file_qvecs = 'outputs/' + dataset + '_qvecs.npy'
+        save_path_feature(dataset + '_database', vecs, images_r_path)
+        save_path_feature(dataset + '_query', qvecs, qimages_r_path)
         
-        np.save(file_vecs, vecs)
-        np.save(file_qvecs, qvecs)
-
         if args.deep_quantization:
             # Codewords = net.C
             # Codewords = Codewords.cpu().detach().numpy()
@@ -360,10 +355,6 @@ def main():
             file_Codewords = 'outputs/' + dataset + '_Codewords.npy'
             np.save(file_CW_idx, CW_idx)
             np.save(file_Codewords, Codewords)
-
-        
-        vecs = np.load(file_vecs)
-        qvecs = np.load(file_qvecs)       
 
         # search, rank, and print
         n_database = vecs.shape[1]
@@ -385,13 +376,13 @@ def main():
         compute_map_and_print(dataset, ranks, cfg['gnd'])
 
         # Output ranked images
-        rank_res = {}
-        for i in range(len(qimages_r_path)):
-            rank_res[qimages_r_path[i]] = [images_r_path[j] for j in match_idx[i,:]]
-        file_rankres = 'outputs/' + dataset + '_ranking_result.pkl'
-        a_file = open(file_rankres, "wb")
-        pickle.dump(rank_res, a_file)
-        a_file.close()
+        # rank_res = {}
+        # for i in range(len(qimages_r_path)):
+        #     rank_res[qimages_r_path[i]] = [images_r_path[j] for j in match_idx[i,:]]
+        # file_rankres = 'outputs/' + dataset + '_ranking_result.pkl'
+        # a_file = open(file_rankres, "wb")
+        # pickle.dump(rank_res, a_file)
+        # a_file.close()
 
         # Visualization
         # Visualize the selected query image and its matching images
