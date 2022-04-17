@@ -10,6 +10,7 @@ from this import d
 import time
 import pickle
 import pdb
+import pandas as pd
 
 import numpy as np
 import matplotlib.image as mpimg
@@ -118,8 +119,16 @@ def extr_selfmade_dataset(net, selfmadedataset, transform, ms, msp, Lw):
     # folder_path = os.path.join('/home/yuanyuanyao/data/test', selfmadedataset) 
     # img_r_path = os.listdir(folder_path)
     # images = [os.path.join(folder_path, rel_path) for rel_path in img_r_path]
-    folder_path = os.path.join('/home/yuanyuanyao/data/test', selfmadedataset)
-    images, img_r_path = path_all_jpg(folder_path, start="/home/yuanyuanyao/data/")
+    if selfmadedataset == 'GLM/test':
+        path_head = '/home/yuanyuanyao/data/test/GLM/'
+        df = pd.read_csv(path_head + 'retrieval_solution_v2.1.csv', usecols= ['id','images'])
+        df_filtered = df.loc[df['images'] != 'None']
+        query_id = df_filtered['id'].tolist()
+        images = [path_head+'test/'+id[0]+'/'+id[1]+'/'+id[2]+'/'+id+'.jpg' for id in query_id]
+        img_r_path = [os.path.relpath(path, "/home/yuanyuanyao/data/") for path in images]
+    else:
+        folder_path = os.path.join('/home/yuanyuanyao/data/test', selfmadedataset)
+        images, img_r_path = path_all_jpg(folder_path, start="/home/yuanyuanyao/data/")
     # extract database vectors
     print('>> {}: database images...'.format(selfmadedataset))
     vecs = extract_vectors(net, images, args.image_size, transform, ms=ms, msp=msp)
@@ -431,7 +440,8 @@ def main():
         # extr_selfmade_dataset(net, 'flickr100k', transform, ms, msp, Lw)
         # extr_selfmade_dataset(net, 'Custom/database', transform, ms, msp, Lw)
         # extr_selfmade_dataset(net, 'Custom/query', transform, ms, msp, Lw)
-
+        # extr_selfmade_dataset(net, 'GLM/test', transform, ms, msp, Lw)
+        # extr_selfmade_dataset(net, 'GLM/index', transform, ms, msp, Lw)
 
 if __name__ == '__main__':
     main()

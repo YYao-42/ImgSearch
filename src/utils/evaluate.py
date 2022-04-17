@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 
 def compute_ap(ranks, nres):
     """
@@ -164,6 +165,28 @@ def mAP_custom(K, matching_idx, paths_q, paths_d):
         matched = np.zeros(K, dtype=np.int64)
         for j in range(K):
             if matching_idx[i, j] in TP_idx:
+                count += 1
+                matched[j] = count
+        AP = sum(matched/(np.array(range(K))+1))/denominator
+        mAP += AP
+    mAP /= num_query
+    return mAP
+
+def mAP_GLM(K, matching_idx, paths_q, paths_d):
+    q_ids = [path.split('/')[-1].split('.jpg')[0] for path in paths_q]
+    d_ids = [path.split('/')[-1].split('.jpg')[0] for path in paths_d]
+    df = pd.read_csv('/home/yuanyuanyao/data/test/GLM/retrieval_solution_v2.1.csv', usecols= ['id','images'])
+    df_filtered = df.loc[df['images'] != 'None']
+    mAP = 0
+    num_query = len(paths_q)
+    for i in range(num_query):
+        q_id = q_ids[i]
+        match_ids = df_filtered.loc[df_filtered['id'] == q_id]['images'].values[0].split(' ')
+        denominator = min(len(match_ids), K)
+        count = 0
+        matched = np.zeros(K, dtype=np.int64)
+        for j in range(K):
+            if d_ids[matching_idx[i, j]] in match_ids:
                 count += 1
                 matched[j] = count
         AP = sum(matched/(np.array(range(K))+1))/denominator

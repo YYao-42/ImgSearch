@@ -17,7 +17,9 @@ def load_path_features(dataset):
 
 Custom_q, relpaths_q = load_path_features('Custom/query')
 Custom_d, relpaths_d = load_path_features('Custom/database')
-
+# flickr100k, relpaths_flickr100k = load_path_features('flickr100k')
+# Custom_d = np.concatenate((Custom_d, flickr100k), axis=1)
+# relpaths_d = relpaths_d + relpaths_flickr100k
 n_database = Custom_d.shape[1]
 K = n_database
 match_idx, time_per_query = matching_L2(K, Custom_d.T, Custom_q.T)
