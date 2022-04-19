@@ -488,7 +488,7 @@ class HNSW(object):
                 return
 
 
-def matching_HNSW(K, embedded_features_train, embedded_features_test, dataset, ifgenerate=True):
+def matching_HNSW(K, embedded_features_train, embedded_features_test, dataset, m=4, ef=8, ifgenerate=True):
     num_train, feature_len = embedded_features_train.shape
     num_test, _ = embedded_features_test.shape
     if not os.path.exists('outputs/' + dataset):
@@ -497,15 +497,15 @@ def matching_HNSW(K, embedded_features_train, embedded_features_test, dataset, i
     file_path = 'outputs/' + dataset + '/' + 'HNSW.pkl'
 
     if ifgenerate:
-        hnsw = HNSW('l2', m=4, ef=8)
-        widgets = ['Progress: ', Percentage(), ' ', Bar('#'), ' ', Timer(), ' ', ETA()]
-        pbar = ProgressBar(widgets=widgets, maxval=num_train).start()
+        hnsw = HNSW('l2', m=m, ef=ef)
+        # widgets = ['Progress: ', Percentage(), ' ', Bar('#'), ' ', Timer(), ' ', ETA()]
+        # pbar = ProgressBar(widgets=widgets, maxval=num_train).start()
         # Building HNSW graph
-        print("==> Building HNSW graph ...")
+        # print("==> Building HNSW graph ...")
         for i in range(len(embedded_features_train)):
             hnsw.add(embedded_features_train[i])
-            pbar.update(i + 1)
-        pbar.finish()
+            # pbar.update(i + 1)
+        # pbar.finish()
         # Save HNSW object
         afile = open(file_path, "wb")
         with open(file_path, 'wb') as afile:
@@ -520,6 +520,7 @@ def matching_HNSW(K, embedded_features_train, embedded_features_test, dataset, i
     for row in range(num_test):
         query = embedded_features_test[row, :]
         idx_res = np.array(hnsw.search(query, K, ef=K))[:, 0].astype('int')
+        # idx_res = np.array(hnsw.search(query, K, ef=2*K))[:, 0].astype('int')
         if len(idx_res) < K:
             idx_miss = np.where(np.in1d(range(num_train), idx_res) == False)[0]
             idx_res = np.concatenate((idx_res, idx_miss))
@@ -963,23 +964,25 @@ def matching_Greedyhash(K, hash_codes_train, hash_codes_test):
     return idx, time_per_query
 
 
-def matching_ANNOY(K, embedded_features_train, embedded_features_test, metric, dataset, ifgenerate=True):
+def matching_ANNOY(K, embedded_features_train, embedded_features_test, metric, dataset, n_trees=5, ifgenerate=True):
     num_train, feature_len = embedded_features_train.shape
     num_test, _ = embedded_features_test.shape
     
-    if not os.path.exists('outputs/' + dataset):
-            os.makedirs('outputs/' + dataset)
+    # if not os.path.exists('outputs/' + dataset):
+    #         os.makedirs('outputs/' + dataset)
+    save_path = '/home/yuanyuanyao/outputs/' + dataset
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
 
     if ifgenerate:
         t = annoy.AnnoyIndex(feature_len, metric)
-        n_trees = 5
         for n, x in enumerate(embedded_features_train):
             t.add_item(n, x)
         t.build(n_trees)
-        t.save('outputs/' + dataset + '/' + 'test.ann')
+        t.save(save_path + '/' + 'test.ann')
     else:
         t = annoy.AnnoyIndex(feature_len, metric)
-        t.load('outputs/' + dataset + '/' + 'test.ann')
+        t.load(save_path + '/' + 'test.ann')
     idx = np.zeros((num_test, K), dtype=np.int64)
     t1 = time.time()
     for i in range(num_test):
