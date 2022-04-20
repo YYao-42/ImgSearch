@@ -274,7 +274,9 @@ class HNSW(object):
             dist = distance(q, self.data[point])
         else:
             encoded_x = self.data[point]
+            # t10 = time.time()
             dist_table = self.construct_dist_table(q, len(encoded_x))
+            # print('time:', time.time()-t10)
             dist = distance(encoded_x, dist_table)
         # look for the closest neighbor from the top to the 2nd level
         if (self.Codewords).any() == None:
@@ -498,14 +500,14 @@ def matching_HNSW(K, embedded_features_train, embedded_features_test, dataset, m
 
     if ifgenerate:
         hnsw = HNSW('l2', m=m, ef=ef)
-        # widgets = ['Progress: ', Percentage(), ' ', Bar('#'), ' ', Timer(), ' ', ETA()]
-        # pbar = ProgressBar(widgets=widgets, maxval=num_train).start()
+        widgets = ['Progress: ', Percentage(), ' ', Bar('#'), ' ', Timer(), ' ', ETA()]
+        pbar = ProgressBar(widgets=widgets, maxval=num_train).start()
         # Building HNSW graph
-        # print("==> Building HNSW graph ...")
+        print("==> Building HNSW graph ...")
         for i in range(len(embedded_features_train)):
             hnsw.add(embedded_features_train[i])
-            # pbar.update(i + 1)
-        # pbar.finish()
+            pbar.update(i + 1)
+        pbar.finish()
         # Save HNSW object
         afile = open(file_path, "wb")
         with open(file_path, 'wb') as afile:
@@ -519,8 +521,9 @@ def matching_HNSW(K, embedded_features_train, embedded_features_test, dataset, m
     t1 = time.time()
     for row in range(num_test):
         query = embedded_features_test[row, :]
+        # t10 = time.time()
         idx_res = np.array(hnsw.search(query, K, ef=K))[:, 0].astype('int')
-        # idx_res = np.array(hnsw.search(query, K, ef=2*K))[:, 0].astype('int')
+        # print('No:', row, 'time:', time.time()-t10)
         if len(idx_res) < K:
             idx_miss = np.where(np.in1d(range(num_train), idx_res) == False)[0]
             idx_res = np.concatenate((idx_res, idx_miss))
@@ -574,7 +577,7 @@ def matching_HNSW_PQ(K, Codewords, embedded_features_test, CW_idx):
     return idx, time_per_query
 
 
-def matching_HNSW_NanoPQ(K, embedded_features, embedded_features_test, N_books, N_words, dataset, ifgenerate=True):
+def matching_HNSW_NanoPQ(K, embedded_features, embedded_features_test, dataset, N_books=16, N_words=256, m=4, ef=8, ifgenerate=True):
     # normalization
     eftrain_norm = np.linalg.norm(embedded_features, axis=1)
     eftrain_norm = np.expand_dims(eftrain_norm, axis=1)
@@ -583,10 +586,13 @@ def matching_HNSW_NanoPQ(K, embedded_features, embedded_features_test, N_books, 
     embedded_features = embedded_features / eftrain_norm
     embedded_features_test = embedded_features_test / eftest_norm
 
-    if not os.path.exists('outputs/' + dataset):
-            os.makedirs('outputs/' + dataset)
+    save_path = '/home/yuanyuanyao/outputs/' + dataset
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+    # if not os.path.exists('outputs/' + dataset):
+    #         os.makedirs('outputs/' + dataset)
 
-    PQfile_path = 'outputs/' + dataset + '/' + 'NanoPQ.pkl'
+    PQfile_path = save_path + '/' + 'NanoPQ.pkl'
     if ifgenerate:
         pq = nanopq.PQ(M=N_books, Ks=N_words, verbose=True)
         pq.fit(vecs=embedded_features, iter=20, seed=42)
@@ -612,10 +618,10 @@ def matching_HNSW_NanoPQ(K, embedded_features, embedded_features_test, N_books, 
     dict_recover = dict(zip(key_list, value_list))
     num_test, _ = embedded_features_test.shape
 
-    file_path = 'outputs/' + dataset + '/' + 'HNSW_NanoPQ.pkl'
+    file_path = save_path + '/' + 'HNSW_NanoPQ.pkl'
 
     if ifgenerate:
-        hnsw = HNSW('l2', m=4, ef=8, Codewords=Codewords, N_books=N_books)
+        hnsw = HNSW('l2', m=m, ef=ef, Codewords=Codewords, N_books=N_books)
         widgets = ['Progress: ', Percentage(), ' ', Bar('#'), ' ', Timer(), ' ', ETA()]
         pbar = ProgressBar(widgets=widgets, maxval=num_train).start()
         # Building HNSW graph
@@ -639,7 +645,9 @@ def matching_HNSW_NanoPQ(K, embedded_features, embedded_features_test, N_books, 
         query = embedded_features_test[row, :]
         # K_unique = num_train
         K_unique = min(K, num_train)
+        # t10 = time.time()
         idx_unique = np.array(hnsw.search(query, K_unique, ef=K_unique))[:, 0].astype('int')
+        # print('No:', row, 'time:', time.time()-t10)
         if len(idx_unique) < K_unique:
             idx_miss = np.where(np.in1d(range(K_unique), idx_unique) == False)[0]
             idx_unique = np.concatenate((idx_unique, idx_miss))
@@ -810,7 +818,7 @@ def Nano_PQ(embedded_features, N_books, N_words):
 
     return embedded_code, Codewords, embedded_recon
 
-def matching_Nano_PQ(K, embedded_features_train, embedded_features_test, N_books, n_bits_perbook, dataset, ifgenerate=True):
+def matching_Nano_PQ(K, embedded_features_train, embedded_features_test, dataset, N_books=16, n_bits_perbook=8, ifgenerate=True):
     # https://nanopq.readthedocs.io/en/latest/source/tutorial.html#basic-of-pq
     N_words = 2**n_bits_perbook
     num_train, feature_len = embedded_features_train.shape

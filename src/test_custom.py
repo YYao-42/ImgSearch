@@ -4,16 +4,7 @@ import numpy as np
 import pickle
 from src.utils.nnsearch import *
 from src.utils.evaluate import mAP_custom
-
-def load_path_features(dataset):
-    if '/' in dataset:
-        dataset = dataset.replace('/', '_')
-    file_path_feature = 'outputs/' + dataset + '_path_feature.pkl'
-    with open(file_path_feature, 'rb') as pickle_file:
-        path_feature = pickle.load(pickle_file)
-    vecs = path_feature['feature']
-    img_r_path = path_feature['path']
-    return vecs, img_r_path
+from src.utils.general import load_path_features
 
 Custom_q, relpaths_q = load_path_features('Custom/query')
 Custom_d, relpaths_d = load_path_features('Custom/database')
