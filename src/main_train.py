@@ -19,7 +19,7 @@ import torch.utils.data
 
 import torchvision.transforms as transforms
 import torchvision.models as models
-from src.extractor import *
+# from src.extractor import *
 from src.imageretrievalnet import init_network, extract_vectors
 from src.layers.loss import ContrastiveLoss, TripletLoss
 from src.datasets.datahelpers import collate_tuples, cid2filename
