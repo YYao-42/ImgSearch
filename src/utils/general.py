@@ -1,5 +1,6 @@
 import os
 import hashlib
+import pickle
 
 def get_root():
     return os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__)))))
@@ -32,3 +33,38 @@ def sha256_hash(filename, block_size=65536, length=8):
         for block in iter(lambda: f.read(block_size), b''):
             sha256.update(block)
     return sha256.hexdigest()[:length-1]
+
+def path_all_jpg(directory, start):
+    paths = []
+    for dirpath, _, filenames in os.walk(directory):
+        paths = paths + [os.path.join(dirpath, f) for f in filenames if f.endswith(".jpg")]
+        # paths = paths + [os.path.join(dirpath, f) for f in filenames]
+    rel_paths = [os.path.relpath(path, start) for path in paths]
+    return paths, rel_paths
+
+def save_path_feature(dataset, vecs, img_r_path):
+    # save the dictionary of paths and features of images into a pkl file    
+    isExist = os.path.exists('outputs')
+    if not isExist:
+        os.makedirs('outputs')
+    
+    path_feature = {}
+    path_feature['path'] = img_r_path
+    path_feature['feature'] = vecs
+
+    if '/' in dataset:
+        dataset = dataset.replace('/', '_')
+    file_path_feature = 'outputs/' + dataset + '_path_feature.pkl'
+    afile = open(file_path_feature, "wb")
+    pickle.dump(path_feature, afile)
+    afile.close()
+
+def load_path_features(dataset):
+    if '/' in dataset:
+        dataset = dataset.replace('/', '_')
+    file_path_feature = 'outputs/' + dataset + '_path_feature.pkl'
+    with open(file_path_feature, 'rb') as pickle_file:
+        path_feature = pickle.load(pickle_file)
+    vecs = path_feature['feature']
+    img_r_path = path_feature['path']
+    return vecs, img_r_path

@@ -24,12 +24,12 @@ import torch.utils.data
 from src.imageretrievalnet import extract_vectors_PQ, init_network, extract_vectors
 from src.datasets.datahelpers import cid2filename
 from src.datasets.testdataset import configdataset
-from src.utils.download import download_distractors, download_train, download_test
+from src.utils.download import download_train, download_test
 from src.layers.whiten import whitenlearn, whitenapply
 from src.utils.evaluate import compute_map_and_print
-from src.utils.general import get_data_root, htime
-from src.extractor import *
-from src.utils.utils import *
+from src.utils.general import get_data_root, htime, path_all_jpg, save_path_feature, load_path_features
+# from src.extractor import *
+# from src.utils.utils import *
 from src.utils.nnsearch import *
 
 PRETRAINED = {
@@ -77,41 +77,6 @@ parser.add_argument('--gpu-id', '-g', default='0', metavar='N',
 
 # parse the arguments
 args = parser.parse_args()
-
-def path_all_jpg(directory, start):
-    paths = []
-    for dirpath, _, filenames in os.walk(directory):
-        paths = paths + [os.path.join(dirpath, f) for f in filenames if f.endswith(".jpg")]
-        # paths = paths + [os.path.join(dirpath, f) for f in filenames]
-    rel_paths = [os.path.relpath(path, start) for path in paths]
-    return paths, rel_paths
-
-def save_path_feature(dataset, vecs, img_r_path):
-    # save the dictionary of paths and features of images into a pkl file    
-    isExist = os.path.exists('outputs')
-    if not isExist:
-        os.makedirs('outputs')
-    
-    path_feature = {}
-    path_feature['path'] = img_r_path
-    path_feature['feature'] = vecs
-
-    if '/' in dataset:
-        dataset = dataset.replace('/', '_')
-    file_path_feature = 'outputs/' + dataset + '_path_feature.pkl'
-    afile = open(file_path_feature, "wb")
-    pickle.dump(path_feature, afile)
-    afile.close()
-
-def load_path_features(dataset):
-    if '/' in dataset:
-        dataset = dataset.replace('/', '_')
-    file_path_feature = 'outputs/' + dataset + '_path_feature.pkl'
-    with open(file_path_feature, 'rb') as pickle_file:
-        path_feature = pickle.load(pickle_file)
-    vecs = path_feature['feature']
-    img_r_path = path_feature['path']
-    return vecs, img_r_path
 
 def extr_selfmade_dataset(net, selfmadedataset, transform, ms, msp, Lw):
     # folder_path = os.path.join(get_data_root(), 'test', selfmadedataset)
@@ -376,10 +341,10 @@ def main():
             match_idx, time_per_query = matching_PQ_Net(K, Codewords, qvecs.T, N_books, CW_idx.T)
         else:
             match_idx, time_per_query = matching_L2(K, vecs.T, qvecs.T)
-            # match_idx, time_per_query = matching_Nano_PQ(K, vecs.T, qvecs.T, 16, 12, dataset, ifgenerate=False)
+            # match_idx, time_per_query = matching_Nano_PQ(K, vecs.T, qvecs.T, dataset, 16, 12, ifgenerate=False)
             # match_idx, time_per_query = matching_ANNOY(K, vecs.T, qvecs.T, 'euclidean', dataset, ifgenerate=False)
             # match_idx, time_per_query = matching_HNSW(K, vecs.T, qvecs.T, dataset, ifgenerate=False)
-            # match_idx, time_per_query = matching_HNSW_NanoPQ(K, vecs.T, qvecs.T, 16, 256, dataset, ifgenerate=False)
+            # match_idx, time_per_query = matching_HNSW_NanoPQ(K, vecs.T, qvecs.T, dataset, ifgenerate=False)
         print('matching time per query: ', time_per_query)
         ranks = match_idx.T
         compute_map_and_print(dataset, ranks, cfg['gnd'])
