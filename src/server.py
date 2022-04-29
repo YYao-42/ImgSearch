@@ -220,6 +220,8 @@ img_paths = []
 for dataset in datasets:
     if dataset in ['oxford5k', 'paris6k', 'Custom']:
         dataset = dataset + '_database'
+    if dataset == 'GLM':
+        dataset = dataset + '_index'
     file_path_feature = 'outputs/' + dataset + '_path_feature.pkl'
     with open(file_path_feature, 'rb') as pickle_file:
         path_feature = pickle.load(pickle_file)
