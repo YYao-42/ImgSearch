@@ -45,7 +45,6 @@ def squared_distances(x, y):
     diff = x.unsqueeze(1) - y.unsqueeze(0)
     return T.sum(diff * diff, -1)
 
-
 # @jit(nopython=True, parallel=True)
 def fractional_distance(x, y, p=0.5):
     '''
@@ -597,7 +596,6 @@ def matching_HNSW_NanoPQ(K, embedded_features, embedded_features_test, dataset, 
         pq = nanopq.PQ(M=N_books, Ks=N_words, verbose=True)
         pq.fit(vecs=embedded_features, iter=20, seed=42)
         # Save PQ object
-        aPQfile = open(PQfile_path, "wb")
         with open(PQfile_path, 'wb') as aPQfile:
             pickle.dump(pq, aPQfile)
     else:
@@ -611,12 +609,21 @@ def matching_HNSW_NanoPQ(K, embedded_features, embedded_features_test, dataset, 
     Codewords = np.transpose(Codewords, (1, 0, 2))
     Codewords = np.reshape(Codewords, (N_words, -1))
 
+    num_test, _ = embedded_features_test.shape
     CW_idx_unique, reverse_idx = np.unique(CW_idx, return_inverse=True, axis=0)
     num_train, _ = CW_idx_unique.shape
-    key_list = range(num_train)
-    value_list = [np.where(reverse_idx == t)[0] for t in key_list]
-    dict_recover = dict(zip(key_list, value_list))
-    num_test, _ = embedded_features_test.shape
+
+    dicfile_path = save_path + '/' + 'dict_recover.pkl'
+
+    if ifgenerate:
+        key_list = range(num_train)
+        value_list = [np.where(reverse_idx == t)[0] for t in key_list]
+        dict_recover = dict(zip(key_list, value_list))
+        with open(dicfile_path, 'wb') as adicfile:
+            pickle.dump(dict_recover, adicfile)  
+    else: 
+        with open(dicfile_path, 'rb') as pickle_file:
+            dict_recover = pickle.load(pickle_file)
 
     file_path = save_path + '/' + 'HNSW_NanoPQ.pkl'
 
@@ -631,7 +638,6 @@ def matching_HNSW_NanoPQ(K, embedded_features, embedded_features_test, dataset, 
             pbar.update(i + 1)
         pbar.finish()
         # Save HNSW object
-        afile = open(file_path, "wb")
         with open(file_path, 'wb') as afile:
             pickle.dump(hnsw, afile)   
     else:
