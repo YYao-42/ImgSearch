@@ -251,11 +251,11 @@ def index():
             qvec = whitenapply(qvec, Lw['m'], Lw['P'])
 
         # Run search
-        match_idx, _ = matching_L2(K, vecs.T, qvec.T)
-        # match_idx, _ = matching_Nano_PQ(K, vecs.T, qvec.T, 16, 12, dataset, ifgenerate=False)
-        # match_idx, _ = matching_ANNOY(K, vecs.T, qvec.T, 'euclidean', dataset='server', ifgenerate=False)
-        # match_idx, _ = matching_HNSW(K, vecs.T, qvec.T, dataset, ifgenerate=False)
-        # match_idx, _ = matching_HNSW_NanoPQ(K, vecs.T, qvec.T, 16, 256, dataset, ifgenerate=False)
+        # match_idx, _ = matching_L2(K, vecs.T, qvec.T)
+        # match_idx, _ = matching_Nano_PQ(K, vecs.T, qvec.T, 16, 12, dataset='server', ifgenerate=False)
+        match_idx, _ = matching_ANNOY(K, vecs.T, qvec.T, 'euclidean', dataset='server', ifgenerate=True)
+        # match_idx, _ = matching_HNSW(K, vecs.T, qvec.T, dataset='server', ifgenerate=False)
+        # match_idx, _ = matching_HNSW_NanoPQ(K, vecs.T, qvec.T, 16, 256, dataset='server', ifgenerate=False)
         
         scores = [(rel_img_paths[id], img_paths[id]) for id in np.squeeze(match_idx)]
 

@@ -1,6 +1,8 @@
 import os
 import hashlib
 import pickle
+import umap
+import matplotlib.pyplot as plt
 
 def get_root():
     return os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__)))))
@@ -68,3 +70,17 @@ def load_path_features(dataset):
     vecs = path_feature['feature']
     img_r_path = path_feature['path']
     return vecs, img_r_path
+
+
+def visualization_umap(features, dataset, n_components=2, random_state=42):
+    fit = umap.UMAP(random_state=random_state, n_components=n_components)
+    u = fit.fit_transform(features)
+    fig = plt.figure()
+    if n_components == 2:
+        ax = fig.add_subplot(111)
+        ax.scatter(u[:, 0], u[:, 1])
+    else:
+        ax = fig.add_subplot(111, projection='3d')
+        ax.scatter(u[:, 0], u[:, 1], u[:, 2])
+    filename = 'outputs/' + dataset + '_vis.jpg'
+    fig.savefig(filename)

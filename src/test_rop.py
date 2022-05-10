@@ -3,7 +3,7 @@ import parser
 from src.utils.nnsearch import *
 from src.datasets.testdataset import configdataset
 from src.utils.evaluate import compute_map_and_print
-from src.utils.general import get_data_root, load_path_features
+from src.utils.general import get_data_root, load_path_features, visualization_umap
 
 parser = argparse.ArgumentParser(description='test: google landmark')
 parser.add_argument('--ifflickr100k', '-100k', action='store_true', help='includes 100k distractors')
@@ -11,7 +11,7 @@ parser.add_argument('--matching_method', '-mm', default='L2', help="select match
 args = parser.parse_args()
 
 datasets = ['oxford5k', 'paris6k', 'roxford5k', 'rparis6k']
-# datasets = ['oxford5k']
+# datasets = ['oxford5k', 'paris6k']
 
 for dataset in datasets:
     vecs, _ = load_path_features(dataset + '_database')
@@ -20,6 +20,7 @@ for dataset in datasets:
         flickr100k, _ = load_path_features('flickr100k')
         vecs = np.concatenate((vecs, flickr100k), axis=1)
     # search, rank, and print
+    visualization_umap(vecs, dataset, n_components=2)
     n_database = vecs.shape[1]
 
     # To report mAP, use K = n_database; To compare the matching time, use K = 100
@@ -33,7 +34,7 @@ for dataset in datasets:
     elif args.matching_method == 'ANNOY':
         match_idx, time_per_query = matching_ANNOY(K, vecs.T, qvecs.T, 'euclidean', dataset, ifgenerate=True)
     elif args.matching_method == 'HNSW':
-        match_idx, time_per_query = matching_HNSW(K, vecs.T, qvecs.T, dataset, ifgenerate=False)
+        match_idx, time_per_query = matching_HNSW(K, vecs.T, qvecs.T, dataset, ifgenerate=True)
     elif args.matching_method == 'PQ_HNSW':
         match_idx, time_per_query = matching_HNSW_NanoPQ(K, vecs.T, qvecs.T, dataset, ifgenerate=True)
     else:
