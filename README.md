@@ -2,7 +2,7 @@
 
 **Link to the thesis**: https://repository.tudelft.nl/islandora/object/uuid:4a2c9c6f-b2b8-41d6-9b70-69c4f246c964?collection=education
 
-**Note**: This thesis contributes to a module (nearest neighbour search) in an image-query based search engine designed and implemented by 3 MSc students. This codebase only contains the codes that are relevant to the thesis. A codebase for the overall system will be available after every member has finished the defense.
+**Note**: This thesis contributes to a module (nearest neighbour search) in an image-query based search engine designed and implemented by 3 MSc students. This codebase only contains the codes that are relevant to the thesis. The codebase of the final search engine: https://github.com/YYao-42/Image-Search-Engine-for-Historical-Research. If you want to know more about the whole engine and not just the nearest neighbour search part, I recommend you check out that repository instead, which has more detailed information.
 
 ### Abstract
 Typically, people search images by text: users enter keywords and a search engine returns relevant results. However, this pattern has limitations. An obvious drawback is that when searching in one language, users may miss results labelled in other languages. Moreover, sometimes people know little about the object in the image and thus would not know what keywords could be used to search for more information. Driven by this use case with many applications, content-based image retrieval (CBIR) has recently been put under the spotlight, which aims to retrieve similar images in the database solely by the content of the query image without relying on textual information.
